@@ -1,6 +1,7 @@
 export const metadata = { title: "Withdrawals API — Octo" };
 
 import { Prose, Code, Endpoint, ParamTable, Callout } from "@/components/docs/DocsUI";
+import { API_URL } from "@/lib/api";
 
 export default function ApiWithdrawals() {
   return (
