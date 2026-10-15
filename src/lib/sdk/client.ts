@@ -3,8 +3,17 @@
  * encrypted backup. Thin wrappers over `apiFetch`, kept in the SDK so an external customer could
  * use the same module.
  */
-import { apiFetch } from "@/lib/api";
+import { apiFetch, path } from "@/lib/api";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
+import { assertNetworkConsistency } from "./network";
 import type { SigningInfo } from "./tx";
+
+/** Decode a signed envelope and ensure it targets the configured network before relaying. */
+function guardNetwork(signedXdr: string) {
+  const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+  assertNetworkConsistency(tx);
+}
 
 export type SubmitResult = {
   status: string;
@@ -14,12 +23,13 @@ export type SubmitResult = {
 
 /** Fetch what the client needs to build a transaction (sequence + network params). */
 export function getSigningInfo(token: string, walletId: string) {
-  return apiFetch<SigningInfo>(`/v1/wallets/${walletId}/signing-info`, { token });
+  return apiFetch<SigningInfo>(path`/v1/wallets/${walletId}/signing-info`, { token });
 }
 
 /** Relay a client-signed transaction. The server validates + submits; it never signs. */
 export function submitSigned(token: string, walletId: string, signedXdr: string) {
-  return apiFetch<SubmitResult>(`/v1/wallets/${walletId}/submit-signed`, {
+  guardNetwork(signedXdr);
+  return apiFetch<SubmitResult>(path`/v1/wallets/${walletId}/submit-signed`, {
     method: "POST",
     token,
     body: JSON.stringify({ transaction_xdr: signedXdr }),
@@ -28,7 +38,8 @@ export function submitSigned(token: string, walletId: string, signedXdr: string)
 
 /** Email an OTP bound to this exact signed transaction, ahead of a withdrawal relay. */
 export function requestWithdrawOtp(token: string, walletId: string, signedXdr: string) {
-  return apiFetch<{ sent: boolean }>(`/v1/wallets/${walletId}/withdraw/request-otp`, {
+  guardNetwork(signedXdr);
+  return apiFetch<{ sent: boolean }>(path`/v1/wallets/${walletId}/withdraw/request-otp`, {
     method: "POST",
     token,
     body: JSON.stringify({ transaction_xdr: signedXdr }),
@@ -42,7 +53,8 @@ export function confirmWithdraw(
   signedXdr: string,
   code: string,
 ) {
-  return apiFetch<SubmitResult>(`/v1/wallets/${walletId}/withdraw/confirm`, {
+  guardNetwork(signedXdr);
+  return apiFetch<SubmitResult>(path`/v1/wallets/${walletId}/withdraw/confirm`, {
     method: "POST",
     token,
     body: JSON.stringify({ transaction_xdr: signedXdr, code }),
@@ -52,7 +64,25 @@ export function confirmWithdraw(
 /** Fetch the opaque encrypted backup blob for new-device recovery (may be null). */
 export function getBackup(token: string, walletId: string) {
   return apiFetch<{ wallet_id: string; encrypted_backup: string | null }>(
-    `/v1/wallets/${walletId}/backup`,
+    path`/v1/wallets/${walletId}/backup`,
     { token },
   );
 }
+
+/** Whether a Stellar account (G...) exists on-chain, looked up server-side via Horizon. */
+export function getAccountExists(token: string, walletId: string, account: string) {
+  return apiFetch<{ exists: boolean }>(
+    path`/v1/wallets/${walletId}/destinations/${account}`,
+    { token },
+  );
+}
+
+/** Upload (or replace) the encrypted backup blob stored server-side for a wallet. */
+export function uploadBackup(token: string, walletId: string, encryptedBackup: string) {
+  return apiFetch<{ stored: boolean }>(path`/v1/wallets/${walletId}/backup`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ encrypted_backup: encryptedBackup }),
+  });
+}
+
