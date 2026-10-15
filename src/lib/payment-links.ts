@@ -3,6 +3,9 @@
 "use client";
 
 import { apiFetch } from "./api";
+import { parseAmount, toApiStroops } from "./amount";
+import type { AuthToken, WalletId } from "./brands";
+import { pageQuery, type Paginated, type PageOpts } from "./pagination";
 
 export type PaymentLink = {
   id: string;
@@ -20,17 +23,14 @@ export type PaymentLink = {
   url: string;
 };
 
-type Paginated<T> = {
-  data: T[];
-  next_cursor: string | null;
-};
-
-export async function listPaymentLinks(
-  token: string,
-  walletId: string,
+/** First page of payment links up to `limit` rows — name reflects the partial view returned. */
+export async function listRecentPaymentLinks(
+  token: AuthToken,
+  walletId: WalletId,
+  limit = 20,
 ): Promise<PaymentLink[]> {
   const page = await apiFetch<Paginated<PaymentLink>>(
-    `/v1/wallets/${walletId}/payment-links`,
+    `/v1/wallets/${walletId}/payment-links${pageQuery({ limit })}`,
     { token },
   );
   return page.data;
@@ -38,16 +38,12 @@ export async function listPaymentLinks(
 
 /** Paginated payment links, preserving `next_cursor` for page controls. */
 export function listPaymentLinksPage(
-  token: string,
-  walletId: string,
-  opts?: { limit?: number; before?: string | null },
-): Promise<{ data: PaymentLink[]; next_cursor: string | null }> {
-  const params = new URLSearchParams();
-  if (opts?.limit) params.set("limit", String(opts.limit));
-  if (opts?.before) params.set("before", opts.before);
-  const qs = params.toString();
-  return apiFetch<{ data: PaymentLink[]; next_cursor: string | null }>(
-    `/v1/wallets/${walletId}/payment-links${qs ? `?${qs}` : ""}`,
+  token: AuthToken,
+  walletId: WalletId,
+  opts?: PageOpts,
+): Promise<Paginated<PaymentLink>> {
+  return apiFetch<Paginated<PaymentLink>>(
+    `/v1/wallets/${walletId}/payment-links${pageQuery(opts)}`,
     { token },
   );
 }
@@ -65,24 +61,20 @@ export type PaymentLinkPayment = {
 };
 
 export function listPaymentLinkPayments(
-  token: string,
-  walletId: string,
+  token: AuthToken,
+  walletId: WalletId,
   linkId: string,
-  opts?: { limit?: number; before?: string | null },
-): Promise<{ data: PaymentLinkPayment[]; next_cursor: string | null }> {
-  const params = new URLSearchParams();
-  if (opts?.limit) params.set("limit", String(opts.limit));
-  if (opts?.before) params.set("before", opts.before);
-  const qs = params.toString();
-  return apiFetch<{ data: PaymentLinkPayment[]; next_cursor: string | null }>(
-    `/v1/wallets/${walletId}/payment-links/${linkId}/payments${qs ? `?${qs}` : ""}`,
+  opts?: PageOpts,
+): Promise<Paginated<PaymentLinkPayment>> {
+  return apiFetch<Paginated<PaymentLinkPayment>>(
+    `/v1/wallets/${walletId}/payment-links/${linkId}/payments${pageQuery(opts)}`,
     { token },
   );
 }
 
 export function createPaymentLink(
-  token: string,
-  walletId: string,
+  token: AuthToken,
+  walletId: WalletId,
   params: {
     name: string;
     description?: string;
@@ -104,7 +96,11 @@ export function createPaymentLink(
   });
 }
 
-export function getPaymentLink(token: string, walletId: string, linkId: string) {
+export function getPaymentLink(
+  token: AuthToken,
+  walletId: WalletId,
+  linkId: string,
+) {
   return apiFetch<PaymentLink>(
     `/v1/wallets/${walletId}/payment-links/${linkId}`,
     { token },
@@ -112,8 +108,8 @@ export function getPaymentLink(token: string, walletId: string, linkId: string) 
 }
 
 export function setPaymentLinkActive(
-  token: string,
-  walletId: string,
+  token: AuthToken,
+  walletId: WalletId,
   linkId: string,
   active: boolean,
 ) {
@@ -147,6 +143,8 @@ export type PaymentIntent = {
   payment_id: string;
   deposit_address: string;
   amount_usdc_stroops: number;
+  /** ISO timestamp after which the intent can no longer be paid, when the API provides it. */
+  expires_at?: string | null;
 };
 
 export function createPaymentIntent(
@@ -217,16 +215,9 @@ export function submitPublicPayment(
   });
 }
 
-/** Format integer USDC stroops (7 dp) as a decimal string. */
-export function usdcStroopsToAmount(stroops: number): string {
-  return (stroops / 10_000_000).toFixed(7);
-}
-
 /** Parse a decimal USD amount string into integer USDC stroops, or null if invalid. */
 export function usdAmountToStroops(usd: string): number | null {
-  const n = Number(usd);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 10_000_000);
+  return toApiStroops(parseAmount(usd));
 }
 
 /** Basic shape check (not full RFC 5322) — enough to catch typos before submitting. */
