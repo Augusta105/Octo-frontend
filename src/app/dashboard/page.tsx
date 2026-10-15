@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
 import { displayName } from "@/lib/auth";
-import { listWallets, type WalletView } from "@/lib/wallets";
+import { listWalletsPage, type WalletView } from "@/lib/wallets";
 import {
   getSponsorshipConfig,
   type SponsorshipConfig,
 } from "@/lib/sponsorship";
+import { asAuthToken, asWalletId } from "@/lib/brands";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { Pagination } from "@/components/dashboard/Pagination";
 import { PageSpinner } from "@/components/OctoSpinner";
+
+export const dynamic = "force-dynamic";
 
 export default function DashboardHome() {
   const { user, token, loading, logout } = useAuth();
@@ -19,36 +23,64 @@ export default function DashboardHome() {
     Map<string, SponsorshipConfig | null>
   >(new Map());
 
-  useEffect(() => {
-    if (!token) return;
-    let aborted = false;
-    listWallets(token)
-      .then(async (ws) => {
-        if (aborted) return;
-        setWallets(ws);
-        // Fetch sponsorship configs in parallel so the wallet list never has to wait on them.
-        // A single failed sponsorship fetch must not blank out the whole row.
-        const results = await Promise.allSettled(
-          ws.map((w) => getSponsorshipConfig(token, w.id)),
-        );
-        if (aborted) return;
-        const map = new Map<string, SponsorshipConfig | null>();
-        ws.forEach((w, i) => {
-          const r = results[i];
-          map.set(w.id, r.status === "fulfilled" ? r.value : null);
+  // Cursor stack for wallet pagination.
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingPage, setLoadingPage] = useState(false);
+
+  const loadPage = useCallback(
+    (before: string | null) => {
+      if (!token) return;
+      let aborted = false;
+      setLoadingPage(true);
+      setWallets(null);
+      listWalletsPage(token, { before })
+        .then(async (page) => {
+          if (aborted) return;
+          setWallets(page.data);
+          setNextCursor(page.next_cursor);
+          // Fetch sponsorship configs for the visible page in parallel.
+          const results = await Promise.allSettled(
+            page.data.map((w) => getSponsorshipConfig(asAuthToken(token), asWalletId(w.id))),
+          );
+          if (aborted) return;
+          const map = new Map<string, SponsorshipConfig | null>();
+          page.data.forEach((w, i) => {
+            const r = results[i];
+            map.set(w.id, r?.status === "fulfilled" ? r.value : null);
+          });
+          setSponsorshipByWalletId(map);
+        })
+        .catch(() => {
+          if (!aborted) setWallets([]);
+        })
+        .finally(() => {
+          if (!aborted) setLoadingPage(false);
         });
-        setSponsorshipByWalletId(map);
-      })
-      .catch(() => {
-        // Gate on the same `aborted` flag the .then already uses so we don't call
-        // setState on an unmounted component when listWallets rejects late.
-        if (aborted) return;
-        setWallets([]);
-      });
-    return () => {
-      aborted = true;
-    };
+      return () => { aborted = true; };
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    loadPage(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  function goNext() {
+    if (!nextCursor) return;
+    setCursors((c) => [...c.slice(0, pageIndex + 1), nextCursor]);
+    setPageIndex((i) => i + 1);
+    loadPage(nextCursor);
+  }
+
+  function goPrev() {
+    if (pageIndex === 0) return;
+    const target = cursors[pageIndex - 1];
+    setPageIndex((i) => i - 1);
+    loadPage(target ?? null);
+  }
 
   if (loading || !user) {
     return (
@@ -72,13 +104,13 @@ export default function DashboardHome() {
             </h2>
             <p className="mt-1 text-sm text-muted">
               It&apos;s{" "}
-              {new Date().toLocaleDateString("en-US", {
+              {new Date().toLocaleDateString("us-EN", {
                 weekday: "long",
                 month: "short",
                 day: "numeric",
                 year: "numeric",
               })}
-              .{" "}
+              {" "}
               {!user.username && (
                 <Link
                   href="/dashboard/settings"
@@ -105,7 +137,7 @@ export default function DashboardHome() {
 
         <div className="mt-5">
           {wallets === null ? (
-            <p className="text-sm text-muted">Loading wallets…</p>
+            <p className="text-sm text-muted">Loading wallets&#x2026;</p>
           ) : wallets.length === 0 ? (
             <EmptyState />
           ) : (
@@ -119,6 +151,14 @@ export default function DashboardHome() {
               ))}
             </div>
           )}
+          <Pagination
+            page={pageIndex + 1}
+            hasPrev={pageIndex > 0}
+            hasNext={nextCursor !== null}
+            loading={loadingPage}
+            onPrev={goPrev}
+            onNext={goNext}
+          />
         </div>
       </div>
     </DashboardShell>
@@ -127,17 +167,36 @@ export default function DashboardHome() {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-burgundy-soft/20 p-10 text-center">
-      <p className="text-foreground">No master wallets yet</p>
-      <p className="mt-1 text-sm text-muted">
-        Create your first master wallet to start receiving deposits.
-      </p>
-      <Link
-        href="/dashboard/wallets/new"
-        className="mt-5 inline-block rounded-full glass-btn-primary px-5 py-2.5 text-sm font-medium"
-      >
-        New Master Wallet
-      </Link>
+    <div className="rounded-2xl border border-dashed border-border bg-burgundy-soft/20 p-8 sm:p-10">
+      <div className="mx-auto max-w-xl text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-burgundy/30 text-2xl text-burgundy-bright">
+          ⊶
+        </div>
+        <p className="mt-5 text-lg font-semibold text-foreground">Your wallet workspace is ready</p>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          Create a master wallet to receive deposits, manage balances, and send assets on Stellar.
+        </p>
+        <div className="mt-6 grid gap-3 text-left sm:grid-cols-3">
+          {[
+            ["1", "Create", "Set up your first master wallet."],
+            ["2", "Receive", "Generate deposit addresses for customers."],
+            ["3", "Manage", "Track balances and transactions in one place."],
+          ].map(([number, title, description]) => (
+            <div key={number} className="rounded-xl border border-border bg-surface/50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-burgundy-bright">
+                {number} · {title}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
+            </div>
+          ))}
+        </div>
+        <Link
+          href="/dashboard/wallets/new"
+          className="mt-7 inline-block rounded-full glass-btn-primary px-5 py-2.5 text-sm font-medium"
+        >
+          Create a master wallet
+        </Link>
+      </div>
     </div>
   );
 }
@@ -162,7 +221,7 @@ function WalletCard({
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-burgundy/40 text-burgundy-bright">
-            ◷
+            ⊶
           </span>
           <div>
             <p className="font-semibold text-foreground">
@@ -212,7 +271,7 @@ function WalletCard({
               {sponsorEnabled ? "Enabled" : "Off"}
             </span>
           </div>
-          {/* Daily-budget cap is rendered only when the API returns a numeric budget.
+          {/* Daily-budget cap is rendered only when the API returns a numeric budget.
               The progress bar for daily-spend consumption is intentionally omitted for now
               because the current API response does not include a "fees_spent_today_stroops"
               field. When that lands, swap this label for a fill-bar the same way the wallet
@@ -252,13 +311,13 @@ function ManageMenu({ walletId }: { walletId: string }) {
               href={`/dashboard/wallets/${walletId}`}
               className="flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-hover"
             >
-              ▦ Go to dashboard
+              ▆ Go to dashboard
             </Link>
             <Link
               href={`/dashboard/wallets/${walletId}/api`}
               className="flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-hover"
             >
-              ↗ API settings
+              ◗ API settings
             </Link>
           </div>
         </>
