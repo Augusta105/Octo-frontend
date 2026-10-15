@@ -13,6 +13,13 @@ import { loadLocalBackup, saveLocalBackup } from "./store";
 import { parseBackup } from "./crypto";
 
 /**
+ * User-facing message shown when no key backup can be found for a wallet.
+ * Exported so tests can assert against the constant instead of a hardcoded string.
+ */
+export const MISSING_BACKUP_ERROR =
+  'No key backup found for this wallet. Use "Recover wallet" on the wallet overview page.';
+
+/**
  * Decrypt the wallet's key with `password` and return a signing Keypair.
  * Throws with a user-facing message if there is no backup or the password is wrong.
  */
@@ -27,9 +34,7 @@ export async function unlockWallet(
   if (!backup) {
     const remote = await getBackup(token, walletId);
     if (!remote.encrypted_backup) {
-      throw new Error(
-        "No key backup found for this wallet. Recover it with your recovery phrase.",
-      );
+      throw new Error(MISSING_BACKUP_ERROR);
     }
     backup = parseBackup(remote.encrypted_backup);
     saveLocalBackup(walletId, backup);
