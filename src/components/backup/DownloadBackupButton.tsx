@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { getBackup, loadLocalBackup, parseBackup, saveLocalBackup } from "@/lib/sdk";
+import { getBackup, loadLocalBackup, parseBackup, saveLocalBackup, decryptSeed, fromMnemonic } from "@/lib/sdk";
 
 /** Export the encrypted backup as a .json file, or re-import one into this browser. */
 export function DownloadBackupButton({
@@ -55,9 +55,25 @@ export function DownloadBackupButton({
       if (parsed?.address && address && parsed.address !== address) {
         throw new Error("This backup file belongs to a different wallet.");
       }
-      // Accept our wrapper or a bare backup blob; parseBackup validates the format.
       const blob = parsed?.backup ?? parsed;
-      saveLocalBackup(walletId, parseBackup(JSON.stringify(blob)));
+      const backup = parseBackup(JSON.stringify(blob));
+
+      // Confirm before replacing an existing local backup for this wallet.
+      if (loadLocalBackup(walletId) && !window.confirm("A local backup already exists for this wallet. Replace it?")) {
+        return;
+      }
+
+      // Validate the backup is usable and bound to this wallet: decrypt with the user's password
+      // and confirm the derived key matches the wallet address.
+      const password = window.prompt("Enter your wallet password to confirm this backup is yours.");
+      if (password === null) return;
+      const mnemonic = await decryptSeed(backup, password);
+      const keypair = fromMnemonic(mnemonic).keypair;
+      if (address && keypair.publicKey() !== address) {
+        throw new Error("This backup does not belong to this wallet.");
+      }
+
+      saveLocalBackup(walletId, backup);
       toast.success("Backup imported. Unlock with your wallet password to use it.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not import the backup file.");

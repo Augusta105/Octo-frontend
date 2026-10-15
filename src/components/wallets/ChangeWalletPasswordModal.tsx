@@ -13,7 +13,7 @@ import {
   getBackup,
   parseBackup,
 } from "@/lib/sdk";
-import { assessPassword, MIN_PASSWORD_LENGTH } from "@/lib/passwordStrength";
+import { assessPassword, PasswordStrengthMeter, MIN_PASSWORD_LENGTH, type PasswordAssessment } from "@/lib/passwordStrength";
 
 /**
  * Change the wallet's encryption password:
@@ -39,15 +39,17 @@ export function ChangeWalletPasswordModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pwFeedback, setPwFeedback] = useState<string[]>([]);
+  const [pwAssessment, setPwAssessment] = useState<PasswordAssessment | null>(null);
   const [done, setDone] = useState(false);
 
   async function handlePasswordChange(value: string) {
     setNewPassword(value);
-    if (!value) { setPwFeedback([]); return; }
+    if (!value) { setPwFeedback([]); setPwAssessment(null); return; }
     try {
       const result = await assessPassword(value);
       setPwFeedback(result.feedback);
-    } catch { setPwFeedback([]); }
+      setPwAssessment(result);
+    } catch { setPwFeedback([]); setPwAssessment(null); }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -57,20 +59,24 @@ export function ChangeWalletPasswordModal({
       setError("Enter your current wallet password.");
       return;
     }
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setError(`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    if (newPassword === currentPassword) {
+      setError("New password must differ from the current one.");
       return;
     }
     if (newPassword !== confirmPassword) {
       setError("New passwords do not match.");
       return;
     }
-    if (newPassword === currentPassword) {
-      setError("New password must differ from the current one.");
+    // Assess with the shared policy. If the estimator can't load, fail closed: never accept a
+    // password we couldn't vet.
+    let assessment: PasswordAssessment;
+    try {
+      assessment = await assessPassword(newPassword);
+    } catch {
+      setError("Couldn't check password strength. Check your connection and try again.");
       return;
     }
-    const assessment = await assessPassword(newPassword).catch(() => null);
-    if (assessment && !assessment.acceptable) {
+    if (!assessment.acceptable) {
       setError("Choose a stronger password. " + (assessment.feedback[0] ?? ""));
       return;
     }
@@ -157,6 +163,9 @@ export function ChangeWalletPasswordModal({
             autoComplete="new-password"
             className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
           />
+          {pwAssessment && (
+            <PasswordStrengthMeter id="new-wallet-password-strength" assessment={pwAssessment} />
+          )}
           {pwFeedback.length > 0 && (
             <ul className="mt-1 space-y-0.5 text-xs text-muted">
               {pwFeedback.map((f, i) => <li key={i}>· {f}</li>)}

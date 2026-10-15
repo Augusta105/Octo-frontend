@@ -19,11 +19,13 @@ import {
   type Address,
   type Transaction,
 } from "@/lib/wallets";
+import { getSigningInfo, type SigningInfo } from "@/lib/sdk";
 import { NETWORK_PASSPHRASE_TESTNET } from "@/lib/networkConfig";
 import { explorerTxUrl } from "@/lib/network";
 import { parseAmount, formatStroops } from "@/lib/amount";
 import {
   spendableNativeStroops,
+  reserveIsExact,
 } from "@/lib/stellar/reserve";
 import { usePolling } from "@/lib/usePolling";
 import { AssetIcon } from "@/components/dashboard/AssetIcon";
@@ -49,6 +51,8 @@ export default function WalletOverview({
   const [balances, setBalances] = useState<Balance[]>([]);
   // True until the first successful balances + addresses fetch completes.
   const [statsLoading, setStatsLoading] = useState(true);
+  // Signing info (base reserve, subentry count, fees) for an exact spendable computation.
+  const [signingInfo, setSigningInfo] = useState<SigningInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [txns, setTxns] = useState<Transaction[]>([]);
@@ -86,6 +90,12 @@ export default function WalletOverview({
       }),
     ]).finally(() => setStatsLoading(false));
     return () => controller.abort();
+  }, [token, id]);
+
+  // Fetch signing info once so the spendable reserve uses real (not default) values.
+  useEffect(() => {
+    if (!token) return;
+    getSigningInfo(token, id).then(setSigningInfo).catch(() => setSigningInfo(null));
   }, [token, id]);
 
   // Silently re-fetch balances + recent transactions in the background so a new deposit shows up
@@ -135,13 +145,15 @@ export default function WalletOverview({
   );
   const hasUsdc = usdcBalance !== undefined;
   // Spendable XLM is derived client-side; show "—" until balances load to avoid fake zeros.
+  const xlmStroops = (() => { const p = parseAmount(xlmAmount); return p.ok ? p.stroops : BigInt(0); })();
+  const trustlines = balances.filter((b) => b.asset_type !== "native").length;
+  // Use the real signing info (base reserve + subentries) so the overview matches the Assets page;
+  // fall back to protocol defaults only when the backend hasn't reported them.
+  const spendable = spendableNativeStroops(xlmStroops, signingInfo, trustlines);
+  const spendableExact = reserveIsExact(signingInfo);
   const spendableDisplay = statsLoading
     ? "—"
-    : `${formatStroops(spendableNativeStroops(
-        (() => { const p = parseAmount(xlmAmount); return p.ok ? p.stroops : BigInt(0); })(),
-        null,
-        balances.filter((b) => b.asset_type !== "native").length,
-      ))} XLM`;
+    : `${formatStroops(spendable)} XLM${spendableExact ? "" : " (estimate)"}`;
 
   return (
     <>
@@ -202,7 +214,7 @@ export default function WalletOverview({
               <Stat
                 label="Spendable XLM"
                 value={spendableDisplay}
-                sub="After Stellar minimum reserve"
+                sub={spendableExact ? "Available to withdraw" : "Estimate (reserve data unavailable)"}
               />
               <Stat
                 label="Generated Addresses"

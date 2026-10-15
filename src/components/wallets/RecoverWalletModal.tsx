@@ -10,7 +10,7 @@ import {
   uploadBackup,
   saveLocalBackup,
 } from "@/lib/sdk";
-import { assessPassword, MIN_PASSWORD_LENGTH } from "@/lib/passwordStrength";
+import { assessPassword, PasswordStrengthMeter, MIN_PASSWORD_LENGTH, type PasswordAssessment } from "@/lib/passwordStrength";
 
 type Step = "phrase" | "password" | "done";
 
@@ -39,6 +39,7 @@ export function RecoverWalletModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pwFeedback, setPwFeedback] = useState<string[]>([]);
+  const [pwAssessment, setPwAssessment] = useState<PasswordAssessment | null>(null);
 
   // Step 1: validate phrase and verify it matches the wallet address.
   async function handlePhraseSubmit(e: React.FormEvent) {
@@ -68,27 +69,31 @@ export function RecoverWalletModal({
 
   async function handlePasswordChange(value: string) {
     setNewPassword(value);
-    if (!value) { setPwFeedback([]); return; }
+    if (!value) { setPwFeedback([]); setPwAssessment(null); return; }
     try {
       const result = await assessPassword(value);
       setPwFeedback(result.feedback);
-    } catch { setPwFeedback([]); }
+      setPwAssessment(result);
+    } catch { setPwFeedback([]); setPwAssessment(null); }
   }
 
   // Step 2: re-encrypt the phrase under the new password and upload the backup.
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-    const assessment = await assessPassword(newPassword).catch(() => null);
-    if (assessment && !assessment.acceptable) {
+    // Assess with the shared policy; fail closed if the estimator can't load.
+    let assessment: PasswordAssessment;
+    try {
+      assessment = await assessPassword(newPassword);
+    } catch {
+      setError("Couldn't check password strength. Check your connection and try again.");
+      return;
+    }
+    if (!assessment.acceptable) {
       setError("Choose a stronger password. " + (assessment.feedback[0] ?? ""));
       return;
     }
@@ -151,6 +156,9 @@ export function RecoverWalletModal({
               autoComplete="new-password"
               className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
             />
+            {pwAssessment && (
+              <PasswordStrengthMeter id="recover-wallet-password-strength" assessment={pwAssessment} />
+            )}
             {pwFeedback.length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs text-muted">
                 {pwFeedback.map((f, i) => <li key={i}>· {f}</li>)}

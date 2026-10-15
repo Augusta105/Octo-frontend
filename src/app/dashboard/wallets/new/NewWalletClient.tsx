@@ -21,6 +21,7 @@ import {
 import {
   assessPassword,
   preloadPasswordEstimator,
+  PasswordStrengthMeter,
   MIN_PASSWORD_LENGTH,
   type PasswordAssessment,
 } from "@/lib/passwordStrength";
@@ -267,7 +268,7 @@ export function NewWalletClient() {
                     aria-describedby="wallet-password-help wallet-password-strength"
                     className="mt-2 w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
                   />
-                  <StrengthMeter
+                  <PasswordStrengthMeter
                     id="wallet-password-strength"
                     assessment={password ? strength : null}
                   />
@@ -324,46 +325,6 @@ export function NewWalletClient() {
         />
       )}
     </>
-  );
-}
-
-/** Text + bar meter; the text label carries the meaning so it never relies on colour alone. */
-function StrengthMeter({
-  id,
-  assessment,
-}: {
-  id: string;
-  assessment: PasswordAssessment | null;
-}) {
-  const score = assessment?.score ?? -1;
-  const fill =
-    score >= 3 ? "bg-success" : score === 2 ? "bg-warning" : "bg-danger";
-  return (
-    <div id={id} className="mt-2" aria-live="polite">
-      <div className="flex gap-1" aria-hidden="true">
-        {[0, 1, 2, 3].map((i) => (
-          <span
-            key={i}
-            className={`h-1.5 flex-1 rounded-full ${i < score ? fill : "bg-track"}`}
-          />
-        ))}
-      </div>
-      {assessment && (
-        <div className="mt-1.5 text-xs">
-          <p className="text-foreground">
-            Strength: <strong>{assessment.label}</strong>
-            {assessment.acceptable ? " — good to go" : " — not strong enough yet"}
-          </p>
-          {!assessment.acceptable && assessment.feedback.length > 0 && (
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
-              {assessment.feedback.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
 
