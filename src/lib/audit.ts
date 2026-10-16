@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch } from "./api";
-import { pageQuery, type Paginated, type PageOpts } from "./pagination";
+import { type Paginated, type PageOpts } from "./pagination";
 
 export type AuditLog = {
   id: string;

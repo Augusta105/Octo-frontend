@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { CopyButton } from "@/components/CopyButton";
 import { AddressQrCode } from "@/components/qr/AddressQrCode";
@@ -18,8 +18,7 @@ import {
   type PaymentStatus,
 } from "@/lib/payment-links";
 import { usdcForNetwork } from "@/lib/networkConfig";
-import { USDC_TESTNET } from "@/lib/wallets";
-import { network, explorerTxUrl } from "@/lib/network";
+import { network } from "@/lib/network";
 import { buildUnsignedPayment } from "@/lib/sdk";
 import { OctoSpinner } from "@/components/OctoSpinner";
 import { PayerPrivacyNotice } from "@/components/checkout/PayerPrivacyNotice";
@@ -175,15 +174,16 @@ export default function PayPage({
   // Expiry is derived from the intent's expires_at so the UI can't drift from the backend.
   const expiresAtMs = intent?.expires_at ? Date.parse(intent.expires_at) : NaN;
   const hasExpiry = Number.isFinite(expiresAtMs);
-  const remainingMs = hasExpiry && now !== null ? expiresAtMs - now : null;
+  const hasNow = now !== null;
+  const remainingMs = hasExpiry && hasNow ? expiresAtMs - now : null;
   const isExpired = remainingMs !== null && remainingMs <= 0;
 
   // Ticks once a second while a countdown is active; stops itself once the intent is gone.
   useEffect(() => {
-    if (!hasExpiry || now === null || isExpired) return;
+    if (!hasExpiry || !hasNow || isExpired) return;
     const id = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(id);
-  }, [hasExpiry, now === null, isExpired]);
+  }, [hasExpiry, hasNow, isExpired]);
 
   // Polls for confirmation with backoff; pauses while hidden or a Freighter submit is in flight.
   useEffect(() => {
