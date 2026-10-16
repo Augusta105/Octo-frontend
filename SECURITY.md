@@ -29,3 +29,16 @@ We only address security issues against the latest release on `main`.
 ## Disclosure Policy
 
 We follow coordinated disclosure. Please allow us reasonable time to patch before publishing details publicly. We will credit reporters in release notes unless you prefer to remain anonymous.
+
+## Security Headers
+
+### HSTS Policy per Environment
+
+The `Strict-Transport-Security` (HSTS) header is tuned per deployment environment in `src/proxy.ts`:
+
+| Environment | HSTS policy |
+|---|---|
+| Production | `max-age=63072000; includeSubDomains; preload` |
+| Preview / staging | `max-age=300` (short, no `includeSubDomains`, no `preload`) |
+
+**Rationale.** Production hosts are stable and long-lived, so a two-year `max-age` with `includeSubDomains` and `preload` gives the strongest protection against protocol-downgrade and cookie-hijacking attacks. Preview and staging hosts are ephemeral and may be served over plain HTTP during local development or behind internal tooling; applying the production policy there would pin those hosts (and their subdomains) to HTTPS in visitors' browsers, breaking local/dev access and locking users out of preview deployments that are not yet TLS-ready. A short `max-age` on non-production keeps the header present for testing without the irreversible commitment of `preload` or `includeSubDomains`.
