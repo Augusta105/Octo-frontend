@@ -56,6 +56,13 @@ export function NewWalletClient() {
   const [error, setError] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const pendingCreation = useRef<PendingCreation | null>(null);
+  // Editing the form after a failed attempt discards the prepared keys so a retry never encrypts under a stale password.
+  function editField(set: (value: string) => void) {
+    return (e: { target: { value: string } }) => {
+      pendingCreation.current = null;
+      set(e.target.value);
+    };
+  }
   // Both the server record and the client-held mnemonic are needed for the reveal step.
   const [created, setCreated] = useState<{
     wallet: CreateWalletResponse;
@@ -264,7 +271,7 @@ export function NewWalletClient() {
                   <input
                     id="wallet-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={editField(setName)}
                     placeholder="e.g. Acme master wallet"
                     className="mt-2 w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
                   />
@@ -280,7 +287,7 @@ export function NewWalletClient() {
                   <textarea
                     id="wallet-description"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={editField(setDescription)}
                     placeholder="What is this wallet for?"
                     rows={2}
                     className="mt-2 w-full resize-none rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
@@ -305,7 +312,7 @@ export function NewWalletClient() {
                     id="wallet-password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={editField(setPassword)}
                     onFocus={preloadPasswordEstimator}
                     placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                     autoComplete="new-password"
@@ -319,7 +326,7 @@ export function NewWalletClient() {
                   <input
                     type="password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={editField(setConfirmPassword)}
                     placeholder="Confirm password"
                     aria-label="Confirm encryption password"
                     autoComplete="new-password"
