@@ -39,7 +39,7 @@ pnpm dev   # http://localhost:3000
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm test` | Vitest (`vitest run`) |
-| `pnpm exec tsc --noEmit` | Typecheck |
+| `pnpm typecheck` | Typecheck |
 
 ## Testing
 
@@ -52,7 +52,7 @@ Never log, persist or transmit seeds, private keys or passphrases. Keep third-pa
 ## Contributing
 
 1. Branch from `dev` (never `main`): `git checkout -b <type>/<issue>-<short-description>`.
-2. Run the CI checks: `pnpm exec tsc --noEmit && pnpm lint && pnpm test && pnpm build`.
+2. Run the CI checks: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
 3. Open a PR with base `dev` and `Closes #<issue>` in the description.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
