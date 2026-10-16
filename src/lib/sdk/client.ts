@@ -12,7 +12,12 @@ export type SubmitResult = {
   detail?: string | null;
 };
 
-/** Fetch what the client needs to build a transaction (sequence + network params). */
+/**
+ * Fetch what the client needs to build a transaction (sequence + network params).
+ *
+ * `base_fee_stroops` is validated client-side by the transaction builders before use; callers
+ * receive the validated fee for display.
+ */
 export function getSigningInfo(token: string, walletId: string) {
   return apiFetch<SigningInfo>(path`/v1/wallets/${walletId}/signing-info`, { token });
 }

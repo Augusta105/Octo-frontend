@@ -42,13 +42,34 @@ export type SigningInfo = {
 /** How long a signed envelope stays valid; after this the network returns `tx_too_late`. */
 export const TX_TIMEOUT_SECONDS = 180;
 
+/** Inclusive per-operation fee bounds in stroops; the network minimum up to 1 XLM. */
+export const MIN_FEE_STROOPS = 100;
+export const MAX_FEE_STROOPS = 10_000_000;
+
+/** Refuse to sign with an API-supplied fee that isn't a whole number of stroops within bounds. */
+export function validateFee(fee: unknown): number {
+  if (typeof fee !== "number" || !Number.isInteger(fee) || fee < MIN_FEE_STROOPS || fee > MAX_FEE_STROOPS) {
+    throw new Error(
+      `Refusing to sign: network fee ${String(fee)} stroops is outside the allowed range ` +
+        `${MIN_FEE_STROOPS}–${MAX_FEE_STROOPS} stroops.`,
+    );
+  }
+  return fee;
+}
+
+/** The validated per-operation fee, for showing the user before they sign. */
+export function getFeeStroops(info: SigningInfo): number {
+  return validateFee(info.base_fee_stroops);
+}
+
 /** stellar-base wants fees in stroops as a string, and the sequence pre-increment handled for us. */
 function newBuilder(sourceAccount: string, info: SigningInfo) {
+  const fee = validateFee(info.base_fee_stroops);
   // Account takes the CURRENT sequence; TransactionBuilder increments it for the built tx.
   // `info.sequence` is already a string — do NOT round-trip it through Number().
   const source = new Account(sourceAccount, info.sequence);
   return new TransactionBuilder(source, {
-    fee: String(info.base_fee_stroops),
+    fee: String(fee),
     networkPassphrase: info.network_passphrase,
   });
 }

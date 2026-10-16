@@ -5,7 +5,11 @@ import {
   buildSignedPayment,
   buildSignedChangeTrust,
   buildSignedCreateAccount,
+  buildUnsignedPayment,
   txExpiresAt,
+  getFeeStroops,
+  MIN_FEE_STROOPS,
+  MAX_FEE_STROOPS,
   TX_TIMEOUT_SECONDS,
   type SigningInfo,
 } from "./tx";
@@ -154,5 +158,57 @@ describe("transaction building + signing", () => {
     const w = fromMnemonic(VECTOR_MNEMONIC);
     const kp = keypairFromRawSeed(w.keypair.rawSecretKey());
     expect(kp.publicKey()).toBe(VECTOR_ACCOUNT);
+  });
+});
+
+describe("fee validation", () => {
+  const DESTINATION = "GBAW5XGWORWVFE2XTJYDTLDHXTY2Q2MO73HYCGB3XMFMQ562Q2W2GJQX";
+  const baseInfo: SigningInfo = {
+    account: VECTOR_ACCOUNT,
+    sequence: "42",
+    network_passphrase: Networks.TESTNET,
+    base_fee_stroops: 100,
+  };
+
+  it("accepts the inclusive bounds", () => {
+    expect(getFeeStroops({ ...baseInfo, base_fee_stroops: MIN_FEE_STROOPS })).toBe(MIN_FEE_STROOPS);
+    expect(getFeeStroops({ ...baseInfo, base_fee_stroops: MAX_FEE_STROOPS })).toBe(MAX_FEE_STROOPS);
+  });
+
+  it("rejects values just outside the bounds", () => {
+    expect(() => getFeeStroops({ ...baseInfo, base_fee_stroops: MIN_FEE_STROOPS - 1 })).toThrow();
+    expect(() => getFeeStroops({ ...baseInfo, base_fee_stroops: MAX_FEE_STROOPS + 1 })).toThrow();
+  });
+
+  it("rejects zero, negative, NaN, Infinity and non-integer fees", () => {
+    for (const bad of [0, -1, NaN, Infinity, -Infinity, 1.5, 100.0001]) {
+      expect(() => getFeeStroops({ ...baseInfo, base_fee_stroops: bad })).toThrow();
+    }
+  });
+
+  it("returns the validated fee for an in-range value", () => {
+    expect(getFeeStroops({ ...baseInfo, base_fee_stroops: 1234 })).toBe(1234);
+  });
+
+  it("throws on an out-of-bounds fee in every builder", () => {
+    const w = fromMnemonic(VECTOR_MNEMONIC);
+    const badInfo: SigningInfo = { ...baseInfo, base_fee_stroops: MAX_FEE_STROOPS + 1 };
+    expect(() =>
+      buildSignedPayment(w.keypair, badInfo, { destination: DESTINATION, amount: "1" }),
+    ).toThrow();
+    expect(() =>
+      buildSignedCreateAccount(w.keypair, badInfo, { destination: DESTINATION, startingBalance: "2" }),
+    ).toThrow();
+    expect(() =>
+      buildSignedChangeTrust(w.keypair, badInfo, {
+        asset: {
+          code: "USDC",
+          issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      buildUnsignedPayment(badInfo, { destination: DESTINATION, amount: "1" }),
+    ).toThrow();
   });
 });

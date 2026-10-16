@@ -38,3 +38,5 @@ export type { SubmitResult } from "./client";
 export { saveLocalBackup, loadLocalBackup, clearLocalBackups } from "./store";
 
 export { unlockWallet } from "./unlock";
+
+export { MIN_FEE_STROOPS, MAX_FEE_STROOPS, validateFee, getFeeStroops } from "./tx";
