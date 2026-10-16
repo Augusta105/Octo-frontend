@@ -1,4 +1,4 @@
-"tuse client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -141,7 +141,7 @@ export default function DashboardHome() {
           ) : wallets.length === 0 ? (
             <EmptyState />
           ) : (
-            <div className="grid gap-4 md:grid-cols=2">
+            <div className="grid gap-4 md:grid-cols-2">
               {wallets.map((w) => (
                 <WalletCard
                   key={w.id}
@@ -183,7 +183,7 @@ function EmptyState() {
             ["3", "Manage", "Track balances and transactions in one place."],
           ].map(([number, title, description]) => (
             <div key={number} className="rounded-xl border border-border bg-surface/50 p-3">
-              <p className="texe-xs font-semibold uppercase tracking-wide text-burgundy-bright">
+              <p className="text-xs font-semibold uppercase tracking-wide text-burgundy-bright">
                 {number} · {title}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
@@ -237,7 +237,7 @@ function WalletCard({
 
       <div className="mt-5 h-px bg-border" />
 
-      <div className="mt-4 grid grid-cols=2 gap-3 text-xs sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div>
           <p className="text-muted">Network</p>
           <p className="mt-1 font-medium capitalize text-foreground">
@@ -256,13 +256,13 @@ function WalletCard({
           <p className="text-muted">Gas Sponsor</p>
           <div className="mt-1 flex items-center gap-1.5">
             <span
-              className={`inline-block h-2 w-2 shrink-0 rounded-full ${}`${
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${
                 sponsorEnabled ? "bg-success" : "bg-track"
-              }`}`
+              }`}
               aria-hidden
             />
             <span
-              className={`
+              className={
                 sponsorEnabled
                   ? "font-medium text-success"
                   : "text-muted"
