@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { unlockWallet } from "./unlock";
+import { MISSING_BACKUP_ERROR, unlockWallet } from "./unlock";
 import { getBackup } from "./client";
 import { encryptSeed, serializeBackup, type EncryptedBackup } from "./crypto";
 import { loadLocalBackup } from "./store";
@@ -72,7 +72,7 @@ describe("unlockWallet", () => {
       encrypted_backup: null,
     });
     await expect(unlockWallet(TOKEN, WALLET_ID, TEST_PASSWORD)).rejects.toThrow(
-      "No key backup found for this wallet. Recover it with your recovery phrase.",
+      MISSING_BACKUP_ERROR,
     );
   });
 
