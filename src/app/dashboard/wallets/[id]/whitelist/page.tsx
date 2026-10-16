@@ -1,9 +1,10 @@
 "use client";
 
-import { use, useEffect, useState, type FormEvent } from "react";
-import { StrKey } from "@stellar/stellar-base";
+import { use, useCallback, useEffect, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
 import { useWallet } from "@/lib/useWallet";
+import { validateStellarAddress } from "@/lib/stellar/address";
 import {
   getWhitelistConfig,
   setWhitelistEnabled,
@@ -12,7 +13,13 @@ import {
   removeWhitelistedAddress,
   type WhitelistedAddress,
 } from "@/lib/wallets";
-import { Stat, ActionButton, Panel, Empty } from "@/components/dashboard/WalletUI";
+import {
+  Stat,
+  ActionButton,
+  Panel,
+  Empty,
+  ErrorState,
+} from "@/components/dashboard/WalletUI";
 import { Modal } from "@/components/dashboard/Modal";
 import { PageSpinner } from "@/components/OctoSpinner";
 
@@ -21,13 +28,7 @@ import { PageSpinner } from "@/components/OctoSpinner";
 import { WalletPageShell } from "@/components/dashboard/WalletPageShell";
 export const dynamic = "force-dynamic";
 
-// Accepts only well-formed Stellar account (G…) or muxed account (M…) addresses.
-function isValidStellarAddress(value: string): boolean {
-  return (
-    StrKey.isValidEd25519PublicKey(value) ||
-    StrKey.isValidMed25519PublicKey(value)
-  );
-}
+type AllowlistLoadState = "loading" | "loaded" | "error";
 
 export default function WhitelistPage({
   params,
@@ -43,6 +44,10 @@ export default function WhitelistPage({
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDisable, setConfirmDisable] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<WhitelistedAddress | null>(null);
+  const [allowlistLoadState, setAllowlistLoadState] =
+    useState<AllowlistLoadState>("loading");
+  const [allowlistLoadError, setAllowlistLoadError] = useState<string | null>(null);
 
   const [addr, setAddr] = useState("");
   const [label, setLabel] = useState("");
@@ -50,23 +55,46 @@ export default function WhitelistPage({
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadAllowlist = useCallback(async () => {
     if (!token) return;
-    getWhitelistConfig(token, id)
-      .then((c) => setEnabled(c.enabled))
-      .catch(() => {});
-    listWhitelistedAddresses(token, id)
-      .then(setEntries)
-      .catch(() => setEntries([]));
+    setAllowlistLoadState("loading");
+    setAllowlistLoadError(null);
+    setEnabled(false);
+    setEntries([]);
+    try {
+      const [config, addresses] = await Promise.all([
+        getWhitelistConfig(token, id),
+        listWhitelistedAddresses(token, id),
+      ]);
+      setEnabled(config.enabled);
+      setEntries(addresses);
+      setAllowlistLoadState("loaded");
+    } catch (e) {
+      setAllowlistLoadState("error");
+      setAllowlistLoadError(
+        e instanceof Error ? e.message : "Could not load the withdrawal allowlist.",
+      );
+    }
   }, [token, id]);
 
+  useEffect(() => {
+    void loadAllowlist();
+  }, [loadAllowlist]);
+
+  const allowlistLoaded = allowlistLoadState === "loaded";
+  const allowlistChangesReady = false;
+  const controlsDisabled = !allowlistLoaded || !allowlistChangesReady;
+
   async function applyToggle(next: boolean) {
-    if (!token) return;
+    if (!token || controlsDisabled) return;
     setError(null);
     setToggling(true);
     try {
       const res = await setWhitelistEnabled(token, id, next);
       setEnabled(res.enabled);
+      toast.success(
+        next ? "Withdrawal allowlist enabled." : "Withdrawal allowlist disabled.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update the allowlist.");
     } finally {
@@ -75,19 +103,11 @@ export default function WhitelistPage({
   }
 
   function validateAddr(value: string): string | null {
-    const trimmed = value.trim();
-    if (!trimmed) return "Enter a Stellar address.";
-    if (!isValidStellarAddress(trimmed)) {
-      return "That is not a valid Stellar address (expected a G… or M… account).";
-    }
-    if (wallet && trimmed === wallet.address) {
-      return "This is the wallet's own address — sending to yourself is not allowed.";
-    }
-    return null;
+    return validateStellarAddress(value, { ownAddress: wallet?.address });
   }
 
   function handleToggle() {
-    if (!token) return;
+    if (!token || controlsDisabled) return;
     // Disabling is an anti-fraud control change — require a deliberate second step.
     if (enabled) {
       setConfirmDisable(true);
@@ -105,7 +125,7 @@ export default function WhitelistPage({
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!token || controlsDisabled) return;
     const trimmed = addr.trim();
     const validationError = validateAddr(trimmed);
     if (validationError) {
@@ -120,6 +140,7 @@ export default function WhitelistPage({
       setAddr("");
       setLabel("");
       setAddrError(null);
+      toast.success("Address added to the withdrawal allowlist.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add that address.");
     } finally {
@@ -127,13 +148,20 @@ export default function WhitelistPage({
     }
   }
 
+  function requestRemove(entry: WhitelistedAddress) {
+    if (!token || controlsDisabled) return;
+    setPendingRemoval(entry);
+  }
+
   async function handleRemove(entryId: string) {
-    if (!token) return;
+    if (!token || controlsDisabled) return;
     setRemovingId(entryId);
     setError(null);
     try {
       await removeWhitelistedAddress(token, id, entryId);
       setEntries((prev) => prev.filter((e) => e.id !== entryId));
+      setPendingRemoval(null);
+      toast.success("Address removed from the withdrawal allowlist.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not remove that address.");
     } finally {
@@ -165,11 +193,38 @@ export default function WhitelistPage({
             </div>
 
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Status" value={enabled ? "Enabled" : "Disabled"} />
-              <Stat label="Whitelisted addresses" value={String(entries.length)} />
-              <Stat label="Enforcement point" value="submit-signed" sub="Before Horizon" />
-              <Stat label="Management auth" value="Dashboard login only" sub="Not API keys" />
+              <Stat
+                label="Status"
+                value={allowlistLoaded ? (enabled ? "Enabled" : "Disabled") : "Unavailable"}
+              />
+              <Stat
+                label="Whitelisted addresses"
+                value={allowlistLoaded ? String(entries.length) : "Unavailable"}
+              />
+              <Stat
+                label="Enforcement point"
+                value={allowlistLoaded ? "submit-signed" : "Unavailable"}
+                sub={allowlistLoaded ? "Before Horizon" : undefined}
+              />
+              <Stat
+                label="Management auth"
+                value={allowlistLoaded ? "Dashboard login only" : "Unavailable"}
+                sub={allowlistLoaded ? "Not API keys" : undefined}
+              />
             </div>
+
+            {!allowlistChangesReady && (
+              <p className="rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-muted">
+                Additional verification is required before changing this allowlist.
+              </p>
+            )}
+
+            {allowlistLoadState === "error" && (
+              <ErrorState
+                message={allowlistLoadError ?? "Could not load the withdrawal allowlist."}
+                onRetry={() => void loadAllowlist()}
+              />
+            )}
 
             <Panel
               title="Enforcement"
@@ -184,12 +239,16 @@ export default function WhitelistPage({
                   }
                   onClick={handleToggle}
                   loading={toggling}
-                  disabled={!enabled && entries.length === 0}
+                  disabled={controlsDisabled || (!enabled && entries.length === 0)}
                 />
               }
             >
               <p className="text-sm text-muted">
-                {enabled
+                {!allowlistLoaded
+                  ? "Allowlist status is unavailable until it loads successfully."
+                  : !allowlistChangesReady
+                    ? "Additional verification is required before changing this setting."
+                    : enabled
                   ? "Enabled — payments to destinations not listed below will be rejected with a 403."
                   : entries.length === 0
                     ? "Disabled. Add at least one address below before you can enable enforcement."
@@ -209,6 +268,7 @@ export default function WhitelistPage({
                   <label className="text-xs text-muted">Address (G… or M…)</label>
                   <input
                     value={addr}
+                    disabled={controlsDisabled || adding}
                     onChange={(e) => {
                       setAddr(e.target.value);
                       if (addrError) setAddrError(null);
@@ -225,6 +285,7 @@ export default function WhitelistPage({
                   <label className="text-xs text-muted">Label (optional)</label>
                   <input
                     value={label}
+                    disabled={controlsDisabled || adding}
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder="e.g. Treasury"
                     className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground outline-none focus:border-burgundy/50"
@@ -234,13 +295,15 @@ export default function WhitelistPage({
                   label={adding ? "Adding…" : "Add address"}
                   type="submit"
                   loading={adding}
-                  disabled={adding || !addr.trim()}
+                  disabled={controlsDisabled || adding || !addr.trim()}
                 />
               </form>
             </Panel>
 
             <Panel title="Whitelisted addresses">
-              {entries.length === 0 ? (
+              {!allowlistLoaded ? (
+                <Empty>Allowlist entries are unavailable until loading succeeds.</Empty>
+              ) : entries.length === 0 ? (
                 <Empty>Add at least one destination before enabling the allowlist.</Empty>
               ) : (
                 <ul className="divide-y divide-border">
@@ -259,8 +322,9 @@ export default function WhitelistPage({
                       </div>
                       <ActionButton
                         label={removingId === entry.id ? "Removing…" : "Remove"}
-                        onClick={() => handleRemove(entry.id)}
+                        onClick={() => requestRemove(entry)}
                         loading={removingId === entry.id}
+                        disabled={controlsDisabled}
                       />
                     </li>
                   ))}
@@ -290,10 +354,42 @@ export default function WhitelistPage({
             <ActionButton
               label={toggling ? "Disabling…" : "Disable allowlist"}
               loading={toggling}
+              disabled={controlsDisabled}
               onClick={() => {
                 setConfirmDisable(false);
                 void applyToggle(false);
               }}
+            />
+          </div>
+        </Modal>
+      )}
+
+      {pendingRemoval && (
+        <Modal
+          onClose={() => setPendingRemoval(null)}
+          title="Remove this allowlist address?"
+        >
+          <p className="text-sm text-muted">
+            Removing <span className="font-mono text-foreground">{pendingRemoval.address}</span>{" "}
+            means future withdrawals to this destination will no longer be approved by the
+            allowlist.
+          </p>
+          {enabled && (
+            <p className="mt-3 rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-sm text-danger">
+              Enforcement is enabled: removing this address will immediately block withdrawals
+              to it until it is added again.
+            </p>
+          )}
+          <div className="mt-6 flex justify-end gap-3">
+            <ActionButton
+              label="Keep address"
+              onClick={() => setPendingRemoval(null)}
+            />
+            <ActionButton
+              label={removingId === pendingRemoval.id ? "Removing…" : "Remove address"}
+              loading={removingId === pendingRemoval.id}
+              disabled={controlsDisabled}
+              onClick={() => void handleRemove(pendingRemoval.id)}
             />
           </div>
         </Modal>
