@@ -38,3 +38,5 @@ export type { SubmitResult } from "./client";
 export { saveLocalBackup, loadLocalBackup, clearLocalBackups } from "./store";
 
 export { unlockWallet } from "./unlock";
+
+export { assertNetworkConsistency, isConfiguredNetwork } from "./network";

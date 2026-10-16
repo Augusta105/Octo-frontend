@@ -4,7 +4,16 @@
  * use the same module.
  */
 import { apiFetch, path } from "@/lib/api";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
+import { assertNetworkConsistency } from "./network";
 import type { SigningInfo } from "./tx";
+
+/** Decode a signed envelope and ensure it targets the configured network before relaying. */
+function guardNetwork(signedXdr: string) {
+  const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+  assertNetworkConsistency(tx);
+}
 
 export type SubmitResult = {
   status: string;
@@ -19,6 +28,7 @@ export function getSigningInfo(token: string, walletId: string) {
 
 /** Relay a client-signed transaction. The server validates + submits; it never signs. */
 export function submitSigned(token: string, walletId: string, signedXdr: string) {
+  guardNetwork(signedXdr);
   return apiFetch<SubmitResult>(path`/v1/wallets/${walletId}/submit-signed`, {
     method: "POST",
     token,
@@ -28,6 +38,7 @@ export function submitSigned(token: string, walletId: string, signedXdr: string)
 
 /** Email an OTP bound to this exact signed transaction, ahead of a withdrawal relay. */
 export function requestWithdrawOtp(token: string, walletId: string, signedXdr: string) {
+  guardNetwork(signedXdr);
   return apiFetch<{ sent: boolean }>(path`/v1/wallets/${walletId}/withdraw/request-otp`, {
     method: "POST",
     token,
@@ -42,6 +53,7 @@ export function confirmWithdraw(
   signedXdr: string,
   code: string,
 ) {
+  guardNetwork(signedXdr);
   return apiFetch<SubmitResult>(path`/v1/wallets/${walletId}/withdraw/confirm`, {
     method: "POST",
     token,
@@ -73,4 +85,3 @@ export function uploadBackup(token: string, walletId: string, encryptedBackup: s
     body: JSON.stringify({ encrypted_backup: encryptedBackup }),
   });
 }
-

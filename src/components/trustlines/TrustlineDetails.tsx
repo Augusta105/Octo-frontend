@@ -5,7 +5,13 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import type { Balance } from "@/lib/wallets";
 import { DEFAULT_BASE_RESERVE_STROOPS } from "@/lib/stellar/reserve";
-import { buildSignedChangeTrust, getSigningInfo, submitSigned, unlockWallet } from "@/lib/sdk";
+import {
+  assertNetworkConsistency,
+  buildSignedChangeTrust,
+  getSigningInfo,
+  submitSigned,
+  unlockWallet,
+} from "@/lib/sdk";
 import { friendlyResultMessage } from "@/lib/stellar/resultCodes";
 
 const RESERVE_XLM = DEFAULT_BASE_RESERVE_STROOPS / 10_000_000;
@@ -42,6 +48,7 @@ export function TrustlineDetails({
     try {
       const keypair = await unlockWallet(token, walletId, password);
       const info = await getSigningInfo(token, walletId);
+      assertNetworkConsistency(info.network_passphrase);
       const xdr = buildSignedChangeTrust(keypair, info, {
         asset: { code: b.asset_code as string, issuer: b.asset_issuer as string },
         limit: "0",

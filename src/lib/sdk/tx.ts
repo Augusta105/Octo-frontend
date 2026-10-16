@@ -12,6 +12,7 @@ import {
   Operation,
   TransactionBuilder,
 } from "@stellar/stellar-base";
+import { assertNetworkConsistency } from "./network";
 
 export type SigningInfo = {
   account: string;
@@ -63,6 +64,7 @@ export function buildSignedPayment(
     asset?: { code: string; issuer: string };
   },
 ): string {
+  assertNetworkConsistency(info.network_passphrase);
   const asset = params.asset
     ? new Asset(params.asset.code, params.asset.issuer)
     : Asset.native();
@@ -90,6 +92,7 @@ export function buildSignedCreateAccount(
   info: SigningInfo,
   params: { destination: string; startingBalance: string },
 ): string {
+  assertNetworkConsistency(info.network_passphrase);
   const tx = newBuilder(keypair.publicKey(), info)
     .addOperation(
       Operation.createAccount({
@@ -124,6 +127,7 @@ export function buildUnsignedPayment(
     asset?: { code: string; issuer: string };
   },
 ): string {
+  assertNetworkConsistency(info.network_passphrase);
   const asset = params.asset
     ? new Asset(params.asset.code, params.asset.issuer)
     : Asset.native();
@@ -146,6 +150,7 @@ export function buildSignedChangeTrust(
   info: SigningInfo,
   params: { asset: { code: string; issuer: string }; limit?: string },
 ): string {
+  assertNetworkConsistency(info.network_passphrase);
   const tx = newBuilder(keypair.publicKey(), info)
     .addOperation(
       Operation.changeTrust({
@@ -158,4 +163,3 @@ export function buildSignedChangeTrust(
   tx.sign(keypair);
   return tx.toXDR();
 }
-

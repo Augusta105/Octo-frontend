@@ -11,7 +11,7 @@ import { explorerTxUrl } from "@/lib/network";
 import {
   unlockWallet, getSigningInfo, submitSigned, requestWithdrawOtp, confirmWithdraw,
   getAccountExists, buildSignedPayment, buildSignedChangeTrust, buildSignedCreateAccount,
-  txExpiresAt, TX_TIMEOUT_SECONDS, type SigningInfo, type SubmitResult,
+  txExpiresAt, TX_TIMEOUT_SECONDS, assertNetworkConsistency, type SigningInfo, type SubmitResult,
 } from "@/lib/sdk";
 import { parseAmount, formatStroops } from "@/lib/amount";
 import { validateStellarAddress, getStellarAddressKind, baseAccountOf } from "@/lib/stellar/address";
@@ -377,6 +377,7 @@ export function WithdrawModal({
       // do we ask the server to email an OTP bound to this exact transaction.
       const keypair = await unlockWallet(token, walletId, password, walletAddress);
       const info = await getSigningInfo(token, walletId);
+      assertNetworkConsistency(info.network_passphrase);
       const normalized = formatStroops(checked.stroops);
       const signedXdr = needsCreate
         ? buildSignedCreateAccount(keypair, info, {

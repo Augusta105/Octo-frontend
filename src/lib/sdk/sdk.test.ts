@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { fromMnemonic, generateWallet, keypairFromRawSeed } from "./keys";
 import { encryptSeed, decryptSeed, serializeBackup, parseBackup } from "./crypto";
+import { assertNetworkConsistency } from "./network";
+import { NETWORK_PASSPHRASE } from "@/lib/network";
 import {
   buildSignedPayment,
   buildSignedChangeTrust,
@@ -154,5 +156,60 @@ describe("transaction building + signing", () => {
     const w = fromMnemonic(VECTOR_MNEMONIC);
     const kp = keypairFromRawSeed(w.keypair.rawSecretKey());
     expect(kp.publicKey()).toBe(VECTOR_ACCOUNT);
+  });
+});
+
+describe("network consistency", () => {
+  it("passes for the configured network passphrase", () => {
+    expect(() => assertNetworkConsistency(NETWORK_PASSPHRASE)).not.toThrow();
+  });
+
+  it("throws for a mismatched passphrase", () => {
+    const other =
+      NETWORK_PASSPHRASE === Networks.TESTNET ? Networks.PUBLIC : Networks.TESTNET;
+    expect(() => assertNetworkConsistency(other)).toThrow();
+  });
+});
+
+describe("signing builders reject a mismatched network", () => {
+  const otherPassphrase =
+    NETWORK_PASSPHRASE === Networks.TESTNET ? Networks.PUBLIC : Networks.TESTNET;
+  const badInfo: SigningInfo = {
+    account: VECTOR_ACCOUNT,
+    sequence: "42",
+    network_passphrase: otherPassphrase,
+    base_fee_stroops: 100,
+  };
+
+  it("buildSignedPayment rejects a mismatched network_passphrase", () => {
+    const w = fromMnemonic(VECTOR_MNEMONIC);
+    expect(() =>
+      buildSignedPayment(w.keypair, badInfo, {
+        destination: "GBAW5XGWORWVFE2XTJYDTLDHXTY2Q2MO73HYCGB3XMFMQ562Q2W2GJQX",
+        amount: "1.5",
+      }),
+    ).toThrow();
+  });
+
+  it("buildSignedChangeTrust rejects a mismatched network_passphrase", () => {
+    const w = fromMnemonic(VECTOR_MNEMONIC);
+    expect(() =>
+      buildSignedChangeTrust(w.keypair, badInfo, {
+        asset: {
+          code: "USDC",
+          issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("buildSignedCreateAccount rejects a mismatched network_passphrase", () => {
+    const w = fromMnemonic(VECTOR_MNEMONIC);
+    expect(() =>
+      buildSignedCreateAccount(w.keypair, badInfo, {
+        destination: "GBAW5XGWORWVFE2XTJYDTLDHXTY2Q2MO73HYCGB3XMFMQ562Q2W2GJQX",
+        startingBalance: "2.5",
+      }),
+    ).toThrow();
   });
 });

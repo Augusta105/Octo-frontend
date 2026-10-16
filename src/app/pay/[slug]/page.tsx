@@ -20,7 +20,7 @@ import {
 import { usdcForNetwork } from "@/lib/networkConfig";
 import { USDC_TESTNET } from "@/lib/wallets";
 import { network, explorerTxUrl } from "@/lib/network";
-import { buildUnsignedPayment } from "@/lib/sdk";
+import { buildUnsignedPayment, assertNetworkConsistency } from "@/lib/sdk";
 import { OctoSpinner } from "@/components/OctoSpinner";
 import { PayerPrivacyNotice } from "@/components/checkout/PayerPrivacyNotice";
 import confetti from "canvas-confetti";
@@ -348,6 +348,7 @@ export default function PayPage({
 
       // Sequence must be the PAYER's own (it's the tx source), not the merchant's.
       const info = await getPublicSigningInfo(slug, access.address);
+      assertNetworkConsistency(info.network_passphrase);
       setNetworkPassphrase(info.network_passphrase);
       const usdc = usdcForNetwork(info.network_passphrase);
 
