@@ -31,7 +31,7 @@ describe('proxy CSP reporting configuration', () => {
     delete process.env.CSP_REPORT_TO;
     delete process.env.NEXT_PUBLIC_CSP_REPORT_URI;
     delete process.env.VERCEL_ENV;
-    delete process.env.NODE_ENV;
+    delete (process.env as Record<string, string | undefined>).NODE_ENV;
   });
 
   afterEach(() => {
@@ -101,7 +101,7 @@ describe('proxy HSTS policy per environment', () => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
     delete process.env.VERCEL_ENV;
-    delete process.env.NODE_ENV;
+    delete (process.env as Record<string, string | undefined>).NODE_ENV;
   });
 
   afterEach(() => {
@@ -143,7 +143,7 @@ describe('proxy HSTS policy per environment', () => {
   });
 
   it('omits HSTS in development', async () => {
-    process.env.NODE_ENV = 'development';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
 
     const res = await proxy(makeRequest());
     const hsts = res.headers.get('strict-transport-security');
@@ -157,7 +157,7 @@ describe('proxy inline theme script allowance', () => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
     delete process.env.VERCEL_ENV;
-    delete process.env.NODE_ENV;
+    delete (process.env as Record<string, string | undefined>).NODE_ENV;
   });
 
   afterEach(() => {

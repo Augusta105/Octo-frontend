@@ -11,22 +11,22 @@ export function SponsorshipSummary({
   config,
   className,
 }: SponsorshipSummaryProps) {
-  const perTransactionFeeCapStroops = config?.perTransactionFeeCapStroops ?? null;
-  const spentTodayStroops = config?.spentTodayStroops ?? 0;
-  const dailyBudgetStroops = config?.dailyBudgetStroops ?? null;
+  const perTransactionFeeCapStroops = config?.per_tx_fee_cap_stroops ?? null;
+  const spentTodayStroops = config?.spent_today_stroops ?? 0;
+  const dailyBudgetStroops = config?.daily_budget_stroops ?? null;
 
   const isDisabled = !config || config.enabled === false;
 
   return (
     <div className={className}>
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">
+        <span className="text-[11px] text-muted">
           Per-transaction fee cap
         </span>
-        <span className="text-sm text-gray-900">
+        <span className="text-sm text-foreground">
           {perTransactionFeeCapStroops === null
             ? "—"
-            : `${stroopsToXlm(perTransactionFeeCapStroops)} XLM`}
+            : stroopsToXlm(perTransactionFeeCapStroops)}
         </span>
       </div>
 
@@ -38,7 +38,7 @@ export function SponsorshipSummary({
       </div>
 
       {isDisabled && (
-        <p className="mt-4 text-sm text-gray-500">
+        <p className="mt-4 text-xs text-muted">
           Sponsorship is currently disabled.
         </p>
       )}

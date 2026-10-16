@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { fromMnemonic, generateWallet, keypairFromRawSeed } from "./keys";
 import { encryptSeed, decryptSeed, serializeBackup, parseBackup } from "./crypto";
 import { assertNetworkConsistency } from "./network";
-import { NETWORK_PASSPHRASE } from "@/lib/network";
+import { network } from "@/lib/network";
+
+const NETWORK_PASSPHRASE = network.passphrase;
 import {
   buildSignedPayment,
   buildSignedChangeTrust,
@@ -15,13 +17,24 @@ import {
   TX_TIMEOUT_SECONDS,
   type SigningInfo,
 } from "./tx";
+import { submitSigned } from "./client";
 import {
   Account,
+  Asset,
   MuxedAccount,
+  Operation,
   Networks,
+  Transaction,
   TransactionBuilder,
   Keypair,
 } from "@stellar/stellar-base";
+
+// Decode a plain (non-fee-bump) envelope built by the SDK.
+function decodeTx(xdr: string, passphrase: string): Transaction {
+  const tx = TransactionBuilder.fromXDR(xdr, passphrase);
+  if (!(tx instanceof Transaction)) throw new Error("expected a plain transaction");
+  return tx;
+}
 
 // The exact SEP-0005 vector asserted by the Rust `octo-wallet-core` provision tests. If the JS
 // derivation ever diverges from Rust, a wallet made in the browser could not be recovered on the
@@ -90,12 +103,12 @@ describe("transaction building + signing", () => {
       destination: "GBAW5XGWORWVFE2XTJYDTLDHXTY2Q2MO73HYCGB3XMFMQ562Q2W2GJQX",
       amount: "1.5",
     });
-    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+    const tx = decodeTx(xdr, Networks.TESTNET);
     expect(tx.source).toBe(VECTOR_ACCOUNT);
     expect(tx.signatures.length).toBe(1);
     // The signature must verify against the wallet's public key.
     const kp = Keypair.fromPublicKey(VECTOR_ACCOUNT);
-    expect(kp.verify(tx.hash(), tx.signatures[0].signature())).toBe(true);
+    expect(kp.verify(tx.hash(), tx.signatures[0]!.signature())).toBe(true);
   });
 
   it("builds a signed change-trust (USDC) envelope", () => {
@@ -106,7 +119,7 @@ describe("transaction building + signing", () => {
         issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
       },
     });
-    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+    const tx = decodeTx(xdr, Networks.TESTNET);
     expect(tx.source).toBe(VECTOR_ACCOUNT);
     expect(tx.signatures.length).toBe(1);
   });
@@ -118,11 +131,10 @@ describe("transaction building + signing", () => {
       destination,
       startingBalance: "2.5",
     });
-    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+    const tx = decodeTx(xdr, Networks.TESTNET);
     expect(tx.source).toBe(VECTOR_ACCOUNT);
     expect(tx.signatures.length).toBe(1);
-    if (!("operations" in tx)) throw new Error("expected a plain transaction");
-    const op = tx.operations[0];
+    const op = tx.operations[0]!;
     expect(op.type).toBe("createAccount");
     if (op.type !== "createAccount") return;
     expect(op.destination).toBe(destination);
@@ -268,5 +280,24 @@ describe("signing builders reject a mismatched network", () => {
         startingBalance: "2.5",
       }),
     ).toThrow();
+  });
+});
+
+describe("relay network guard", () => {
+  const DESTINATION = "GBAW5XGWORWVFE2XTJYDTLDHXTY2Q2MO73HYCGB3XMFMQ562Q2W2GJQX";
+  const otherPassphrase =
+    NETWORK_PASSPHRASE === Networks.TESTNET ? Networks.PUBLIC : Networks.TESTNET;
+
+  it("refuses to relay an envelope signed for a different network", () => {
+    const w = fromMnemonic(VECTOR_MNEMONIC);
+    const foreign = new TransactionBuilder(new Account(VECTOR_ACCOUNT, "42"), {
+      fee: "100",
+      networkPassphrase: otherPassphrase,
+    })
+      .addOperation(Operation.payment({ destination: DESTINATION, asset: Asset.native(), amount: "1" }))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+    foreign.sign(w.keypair);
+    expect(() => submitSigned("token", "wallet", foreign.toXDR())).toThrow(/Refusing to relay/);
   });
 });

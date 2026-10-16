@@ -4,15 +4,22 @@
  * use the same module.
  */
 import { apiFetch, path } from "@/lib/api";
-import { TransactionBuilder } from "@stellar/stellar-sdk";
-import { NETWORK_PASSPHRASE } from "@/lib/network";
-import { assertNetworkConsistency } from "./network";
+import { Keypair, Transaction, TransactionBuilder } from "@stellar/stellar-base";
+import { network } from "@/lib/network";
+import { baseAccountOf } from "@/lib/stellar/address";
 import type { SigningInfo } from "./tx";
 
-/** Decode a signed envelope and ensure it targets the configured network before relaying. */
+/** Refuse to relay unless the source account's signature verifies under the configured network. */
 function guardNetwork(signedXdr: string) {
-  const tx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-  assertNetworkConsistency(tx);
+  const decoded = TransactionBuilder.fromXDR(signedXdr, network.passphrase);
+  const tx = decoded instanceof Transaction ? decoded : decoded.innerTransaction;
+  const signer = Keypair.fromPublicKey(baseAccountOf(tx.source));
+  const hash = tx.hash();
+  if (!tx.signatures.some((sig) => signer.verify(hash, sig.signature()))) {
+    throw new Error(
+      `Refusing to relay: this transaction was not signed for the ${network.displayName} network.`,
+    );
+  }
 }
 
 export type SubmitResult = {

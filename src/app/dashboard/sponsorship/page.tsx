@@ -100,7 +100,7 @@ export default function SponsorshipPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {rows.map(({ wallet, config }) => (
               <WalletCard key={wallet.id} wallet={wallet} config={config} />
-            ))
+            ))}
           </div>
         )}
       </div>

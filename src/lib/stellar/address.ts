@@ -38,7 +38,8 @@ export function validateStellarAddress(
   if (!isValidStellarAddress(address)) {
     return "Enter a valid Stellar address (G... or M...).";
   }
-  if (options.ownAddress && address === options.ownAddress.trim()) {
+  // Compare base accounts so a muxed M... alias of the wallet's own G... is also caught.
+  if (options.ownAddress && baseAccountOf(address) === baseAccountOf(options.ownAddress)) {
     return "This is your own wallet address.";
   }
   return null;

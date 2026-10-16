@@ -85,7 +85,7 @@ describe("unlockWallet", () => {
   // Reject unlock when the derived key does not match the expected wallet public key.
   it("rejects when the unlocked key does not match the expected wallet", async () => {
     storage.set(`octo_wallet_backup_${WALLET_ID}`, validBackupString);
-    const wrongKey = fromMnemonic("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about").publicKey();
+    const wrongKey = fromMnemonic("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about").publicKey;
     await expect(unlockWallet(TOKEN, WALLET_ID, TEST_PASSWORD, wrongKey)).rejects.toThrow(
       "Unlocked key does not match this wallet. Aborting unlock.",
     );
