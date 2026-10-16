@@ -45,10 +45,10 @@ type Envelope<T> = {
 export function path(
   strings: TemplateStringsArray,
   ...values: Array<string | number>
-}): string {
+): string {
   return strings.reduce(
     (acc, str, i) =>
-      i === 0 ? str : `${acc}${encodeURIComponent(String(values[i - 1]))}${str}",
+      i === 0 ? str : `${acc}${encodeURIComponent(String(values[i - 1]))}${str}`,
     "",
   );
 }
