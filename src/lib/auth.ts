@@ -74,16 +74,31 @@ export function displayName(user: Pick<User, "email" | "username">): string {
 // --- token storage (localStorage; bearer-token auth, not cookies) ---
 
 export function saveToken(token: string) {
-  if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
+  if (typeof window === "undefined") return false;
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function clearToken() {
-  if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Storage is optional; in-memory auth state is still cleared by the caller.
+  }
 }
 
 /**
@@ -93,8 +108,11 @@ export function clearToken() {
  */
 export function signOut() {
   if (typeof window === "undefined") return;
-  clearLocalBackups();
-  clearToken();
+  try {
+    clearLocalBackups();
+  } finally {
+    clearToken();
+  }
 }
 
 /** The localStorage key watched by the cross-tab storage listener in useAuth. */

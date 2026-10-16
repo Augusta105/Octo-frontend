@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
@@ -16,6 +16,7 @@ import {
   encryptSeed,
   serializeBackup,
   saveLocalBackup,
+  type EncryptedBackup,
   type WalletKeys,
 } from "@/lib/sdk";
 import {
@@ -32,6 +33,16 @@ import { PageSpinner } from "@/components/OctoSpinner";
 /** How many phrase words the user must re-enter to prove they saved it. */
 const VERIFY_WORD_COUNT = 3;
 
+type PendingCreation = {
+  keys: WalletKeys;
+  backup: EncryptedBackup;
+  challenge: string | null;
+  signature: string | null;
+  idempotencyKey: string;
+  label: string;
+  description: string;
+};
+
 export function NewWalletClient() {
   const { user, token, loading, logout } = useAuth();
   const router = useRouter();
@@ -43,6 +54,8 @@ export function NewWalletClient() {
   const [strength, setStrength] = useState<PasswordAssessment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backupWarning, setBackupWarning] = useState<string | null>(null);
+  const pendingCreation = useRef<PendingCreation | null>(null);
   // Both the server record and the client-held mnemonic are needed for the reveal step.
   const [created, setCreated] = useState<{
     wallet: CreateWalletResponse;
@@ -79,56 +92,80 @@ export function NewWalletClient() {
     if (!token) return;
     setError(null);
 
-    // Re-assess on submit so the decision never depends on a stale live estimate.
-    let assessment: PasswordAssessment;
-    try {
-      assessment = await assessPassword(password, userInputs);
-    } catch {
-      setError("Couldn't check password strength. Check your connection and try again.");
-      return;
-    }
-    if (!assessment.acceptable) {
-      setStrength(assessment);
-      setError(
-        `This password is too easy to guess (${assessment.label.toLowerCase()}). ${
-          assessment.feedback[0] ?? "Try a longer passphrase of several unrelated words."
-        }`,
-      );
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
+    if (!pendingCreation.current) {
+      // Re-assess on submit so the decision never depends on a stale live estimate.
+      let assessment: PasswordAssessment;
+      try {
+        assessment = await assessPassword(password, userInputs);
+      } catch {
+        setError("Couldn't check password strength. Check your connection and try again.");
+        return;
+      }
+      if (!assessment.acceptable) {
+        setStrength(assessment);
+        setError(
+          `This password is too easy to guess (${assessment.label.toLowerCase()}). ${
+            assessment.feedback[0] ?? "Try a longer passphrase of several unrelated words."
+          }`,
+        );
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      // 1. Generate the keypair + mnemonic entirely in the browser.
-      const keys: WalletKeys = generateWallet();
-      // 2. Encrypt the mnemonic under the user's password (server can never decrypt it).
-      const backup = await encryptSeed(keys.mnemonic, password);
-      const encryptedBackup = serializeBackup(backup);
-      // 3. Prove ownership: sign the server's challenge with the new keypair.
-      const { challenge } = await getWalletChallenge(token);
-      const signature = keys.keypair
-        .sign(Buffer.from(challenge, "utf8"))
-        .toString("base64");
-      // 4. Register only the public key + signed challenge + opaque backup blob.
+      // Keep all generated material in memory until the server confirms creation.
+      let pending = pendingCreation.current;
+      if (!pending) {
+        const keys = generateWallet();
+        const backup = await encryptSeed(keys.mnemonic, password);
+        pending = {
+          keys,
+          backup,
+          challenge: null,
+          signature: null,
+          idempotencyKey: crypto.randomUUID(),
+          label: name,
+          description,
+        };
+        pendingCreation.current = pending;
+      }
+      if (!pending.challenge || !pending.signature) {
+        const { challenge } = await getWalletChallenge(token);
+        pending.challenge = challenge;
+        pending.signature = pending.keys.keypair
+          .sign(Buffer.from(challenge, "utf8"))
+          .toString("base64");
+      }
+      if (!pending.challenge || !pending.signature) {
+        throw new Error("Could not prepare wallet ownership proof. Please try again.");
+      }
+      const encryptedBackup = serializeBackup(pending.backup);
       const wallet = await createWallet(token, {
-        publicKey: keys.publicKey,
-        challenge,
-        signature,
+        publicKey: pending.keys.publicKey,
+        challenge: pending.challenge,
+        signature: pending.signature,
         encryptedBackup,
-        label: name,
-        description,
+        label: pending.label,
+        description: pending.description,
+        idempotencyKey: pending.idempotencyKey,
       });
-      // 5. Keep a local copy of the backup so this device can sign without a round-trip.
-      saveLocalBackup(wallet.id, backup);
+      const cached = saveLocalBackup(wallet.id, pending.backup);
+      if (!cached) {
+        setBackupWarning(
+          "Your wallet was created, but this browser could not cache its encrypted backup. Keep your password and recovery phrase safe; Octo will provide the backup when you unlock this wallet.",
+        );
+      }
+      pendingCreation.current = null;
       // The password is no longer needed; don't keep it in memory while the phrase is shown.
       setPassword("");
       setConfirmPassword("");
       setStrength(null);
-      setCreated({ wallet, mnemonic: keys.mnemonic });
+      setCreated({ wallet, mnemonic: pending.keys.mnemonic });
     } catch (err) {
       setError(errorMessage(err, "Failed to create wallet."));
     } finally {
@@ -165,11 +202,18 @@ export function NewWalletClient() {
           </div>
 
           {created ? (
-            <RecoveryReveal
-              wallet={created.wallet}
-              mnemonic={created.mnemonic}
-              onVerified={onVerified}
-            />
+            <>
+              <RecoveryReveal
+                wallet={created.wallet}
+                mnemonic={created.mnemonic}
+                onVerified={onVerified}
+              />
+              {backupWarning && (
+                <p role="status" className="mx-auto mt-4 max-w-xl rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  {backupWarning}
+                </p>
+              )}
+            </>
           ) : (
             <div className="grid gap-12 lg:grid-cols-2">
               {/* left: explainer */}
