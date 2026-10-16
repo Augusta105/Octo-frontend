@@ -6,6 +6,8 @@ on:
   pull_request:
 
 jobs:
+  # The `check` job is the required status check for `dev` and `main` branch protection.
+  # Renaming this job (or the workflow `name` above) will break required status checks.
   check:
     name: typecheck · lint · test · build
     runs-on: ubuntu-latest

@@ -55,6 +55,18 @@ Never log, persist or transmit seeds, private keys or passphrases. Keep third-pa
 2. Run the CI checks: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
 3. Open a PR with base `dev` and `Closes #<issue>` in the description.
 
+### Merge requirements
+
+All pull requests targeting `dev` and `main` must satisfy the following before they can be merged:
+
+- **Passing CI run.** The [`CI`](.github/workflows/ci.yml) workflow (job `check`) must complete
+  successfully on the PR's head commit.
+- **At least one approving review.** A maintainer must approve the PR.
+
+These requirements are enforced by branch protection rules / rulesets, which maintainers configure
+in the GitHub repository settings (Settings → Branches / Rulesets). Do not merge a PR that has not
+met both conditions.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Configuration
