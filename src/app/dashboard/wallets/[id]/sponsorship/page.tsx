@@ -14,7 +14,7 @@ import { SponsoredTransactionsTable } from "@/components/dashboard/SponsoredTran
 import { ApiError } from "@/lib/api";
 import { PageSpinner } from "@/components/OctoSpinner";
 import { formatStroops } from "@/lib/amount";
-import { BudgetMeter } from "@/components/dashboard/BudgetMeter";
+import { BudgetMeter } from "@/components/sponsorship/BudgetMeter";
 
 import { WalletPageShell } from "@/components/dashboard/WalletPageShell";
 export default function SponsorshipSettingsPage({
@@ -116,11 +116,6 @@ export default function SponsorshipSettingsPage({
 
   const spentToday = config?.spent_today_stroops ?? 0;
   const budgetStroops = config?.daily_budget_stroops ?? 0;
-  const remaining = Math.max(0, budgetStroops - spentToday);
-  const pct =
-    budgetStroops > 0
-      ? Math.min(100, Math.round((spentToday / budgetStroops) * 100))
-      : 0;
 
   return (
     <>
@@ -143,10 +138,8 @@ export default function SponsorshipSettingsPage({
 
               {/* Today's spend */}
               <BudgetMeter
-                spentStroops={spentToday}
-                budgetStroops={budgetStroops}
-                remainingStroops={remaining}
-                pct={pct}
+                spentTodayStroops={spentToday}
+                dailyBudgetStroops={config?.daily_budget_stroops ?? null}
               />
 
               {/* Settings form */}
@@ -218,8 +211,8 @@ export default function SponsorshipSettingsPage({
                     className="mt-1.5 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
                   />
                   <p className="mt-1 text-xs text-muted">
-                    {formatStroops(remaining)} XLM remaining of today&apos;s
-                    budget.
+                    {formatStroops(Math.max(0, budgetStroops - spentToday))} XLM
+                    remaining of today&apos;s budget.
                   </p>
                 </div>
 

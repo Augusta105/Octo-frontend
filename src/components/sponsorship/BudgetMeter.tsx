@@ -34,7 +34,7 @@ export function BudgetMeter({ spentTodayStroops, dailyBudgetStroops, className }
         <>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-hover">
             <div
-              className={`w-full rounded-full ${exhausted ? "bg-danger" : "bg-burgundy"}`}
+              className={`h-full rounded-full ${exhausted ? "bg-danger" : "bg-burgundy"}`}
               style={{ width: `${ratio * 100}%`}}
             />
           </div>
@@ -43,7 +43,7 @@ export function BudgetMeter({ spentTodayStroops, dailyBudgetStroops, className }
             <span>{stroopsToXlm(remainingStroops)} remaining</span>
           </div>
         </>
-      )
+      )}
     </div>
   );
 }
