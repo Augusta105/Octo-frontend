@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { signup, login, verifyEmail, resendOtp, needsVerification, saveToken } from "@/lib/auth";
-import { ApiError } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { OtpInput } from "./OtpInput";
 
 type Mode = "signup" | "login";
@@ -12,7 +12,17 @@ type Step = "credentials" | "verify";
 
 const RESEND_COOLDOWN_SECS = 30;
 
-export function AuthForm({ mode }: { mode: Mode }) {
+export function AuthForm({
+  mode,
+  next,
+  reason,
+}: {
+  mode: Mode;
+  /** Same-origin path to redirect to after successful login. Already validated server-side. */
+  next?: string;
+  /** "expired" shows a banner explaining why the user was redirected. */
+  reason?: string;
+}) {
   const [step, setStep] = useState<Step>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +38,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
     saveToken(token);
     // Hard navigation so the dashboard mounts fresh with the token already in
     // localStorage (avoids a client-router race that can bounce back to /login).
-    window.location.assign("/dashboard");
+    // Redirect to the page the user was on before session expiry, or the dashboard.
+    window.location.assign(next ?? "/dashboard");
   }
 
   function startCooldown() {
@@ -65,8 +76,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         finish(result.token);
       }
     } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      const message = errorMessage(err, "Something went wrong. Please try again.");
       setError(message);
       toast.error(message);
     } finally {
@@ -86,7 +96,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       const result = await verifyEmail(userId, code);
       finish(result.token);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Invalid or expired code.";
+      const message = errorMessage(err, "Invalid or expired code.");
       setError(message);
       toast.error(message);
       setLoading(false);
@@ -101,7 +111,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       startCooldown();
       toast.success("A new code is on its way.");
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Could not resend the code.";
+      const message = errorMessage(err, "Could not resend the code.");
       setError(message);
       toast.error(message);
     }
@@ -118,10 +128,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <div className="my-7 h-px bg-border" />
 
         <form onSubmit={onVerify} className="space-y-5">
-          <OtpInput value={code} onChange={setCode} disabled={loading} />
+          <OtpInput value={code} onChange={setCode} disabled={loading} aria-describedby={error ? "verify-error" : undefined} aria-invalid={error ? "true" : "false"} />
 
           {error && (
-            <p className="rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+            <p id="verify-error" role="alert" className="rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
               {error}
             </p>
           )}
@@ -163,41 +173,54 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <div className="my-7 h-px bg-border" />
 
+      {reason === "expired" && (
+        <p className="mb-5 rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+          Your session expired. Please sign in again to continue.
+        </p>
+      )}
+
       <form onSubmit={onSubmit} className="space-y-5">
         <div>
-          <label className="text-sm font-medium text-foreground">
+          <label htmlFor="email-input" className="text-sm font-medium text-foreground">
             Email Address
           </label>
           <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-surface-raised px-4 py-3 focus-within:border-burgundy-bright">
             <span className="text-muted">✉</span>
             <input
+              id="email-input"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter personal email here"
               autoComplete="email"
+              aria-invalid={error ? "true" : "false"}
+              aria-describedby={error ? "auth-error" : undefined}
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/60 focus:outline-none"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-sm font-medium text-foreground">Password</label>
+          <label htmlFor="password-input" className="text-sm font-medium text-foreground">Password</label>
           <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-surface-raised px-4 py-3 focus-within:border-burgundy-bright">
             <span className="text-muted"></span>
             <input
+              id="password-input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={isSignup ? "Create a password (8+ chars)" : "Enter your password"}
               autoComplete={isSignup ? "new-password" : "current-password"}
+              aria-invalid={error ? "true" : "false"}
+              aria-describedby={error ? "auth-error" : undefined}
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/60 focus:outline-none"
             />
           </div>
+          {!isSignup && <Link href="/forgot-password" className="mt-2 inline-block text-xs text-muted hover:text-foreground">Forgot password?</Link>}
         </div>
 
         {error && (
-          <p className="rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+          <p id="auth-error" role="alert" className="rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
             {error}
           </p>
         )}

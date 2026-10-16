@@ -5,8 +5,10 @@ import {
   listSponsoredTransactions,
   type SponsoredTransaction,
 } from "@/lib/sponsorship";
-import { stroopsToAmount } from "@/lib/wallets";
+import { asAuthToken, asWalletId } from "@/lib/brands";
+import { formatStroops, sumStroops } from "@/lib/amount";
 import { CopyButton } from "@/components/CopyButton";
+import { RelativeTime } from "@/components/RelativeTime";
 
 const STATUS_BADGE: Record<string, string> = {
   confirmed: "bg-success-bg text-success",
@@ -27,7 +29,7 @@ export function SponsoredTransactionsTable({
 
   useEffect(() => {
     let active = true;
-    listSponsoredTransactions(walletId, token)
+    listSponsoredTransactions(asAuthToken(token), asWalletId(walletId))
       .then((page) => {
         if (!active) return;
         setRows(page.data);
@@ -43,7 +45,7 @@ export function SponsoredTransactionsTable({
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const page = await listSponsoredTransactions(walletId, token, cursor);
+      const page = await listSponsoredTransactions(asAuthToken(token), asWalletId(walletId), { before: cursor });
       // Append — never replace the existing rows.
       setRows((prev) => [...(prev ?? []), ...page.data]);
       setCursor(page.next_cursor);
@@ -63,7 +65,7 @@ export function SponsoredTransactionsTable({
       d.getUTCMonth() === now.getUTCMonth()
     );
   });
-  const monthFeeStroops = monthRows.reduce((sum, r) => sum + r.fee_stroops, 0);
+  const monthFeeStroops = sumStroops(monthRows.map((r) => r.fee_stroops));
 
   return (
     <section className="rounded-2xl border border-border bg-burgundy-soft/30 p-5">
@@ -74,19 +76,22 @@ export function SponsoredTransactionsTable({
         <p className="text-xs text-muted">
           {monthRows.length}{" "}
           {monthRows.length === 1 ? "transaction" : "transactions"} sponsored ·{" "}
-          {stroopsToAmount(monthFeeStroops)} XLM total fees this month
+          {formatStroops(monthFeeStroops)} XLM total fees this month
         </p>
       </div>
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-left text-sm">
+          <caption className="sr-only">
+            Sponsored transactions for this wallet
+          </caption>
           <thead className="text-xs uppercase tracking-wide text-muted">
             <tr>
-              <th className="py-2 pr-4">Date</th>
-              <th className="py-2 pr-4">Inner Tx Hash</th>
-              <th className="py-2 pr-4">Fee Bump Tx Hash</th>
-              <th className="py-2 pr-4">Fee</th>
-              <th className="py-2">Status</th>
+              <th scope="col" className="py-2 pr-4">Date</th>
+              <th scope="col" className="py-2 pr-4">Inner Tx Hash</th>
+              <th scope="col" className="py-2 pr-4">Fee Bump Tx Hash</th>
+              <th scope="col" className="py-2 pr-4">Fee</th>
+              <th scope="col" className="py-2">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-divider">
@@ -102,7 +107,7 @@ export function SponsoredTransactionsTable({
               rows.map((tx) => (
                 <tr key={tx.id} className="text-foreground/90">
                   <td className="py-3 pr-4 text-xs text-muted whitespace-nowrap">
-                    {formatDate(tx.created_at)}
+                    <RelativeTime date={tx.created_at} />
                   </td>
                   <td className="py-3 pr-4">
                     <HashCell hash={tx.inner_tx_hash} />
@@ -111,7 +116,7 @@ export function SponsoredTransactionsTable({
                     <HashCell hash={tx.fee_bump_tx_hash} />
                   </td>
                   <td className="py-3 pr-4 whitespace-nowrap">
-                    {stroopsToAmount(tx.fee_stroops)} XLM
+                    {formatStroops(tx.fee_stroops)} XLM
                   </td>
                   <td className="py-3">
                     <StatusBadge status={tx.status} />
@@ -171,21 +176,4 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
       </td>
     </tr>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  const time = d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
-  });
-  return `${date} · ${time} UTC`;
 }

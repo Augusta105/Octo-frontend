@@ -163,4 +163,3 @@ export function buildSignedChangeTrust(
   tx.sign(keypair);
   return tx.toXDR();
 }
-

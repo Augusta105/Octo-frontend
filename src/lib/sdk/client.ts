@@ -85,4 +85,3 @@ export function uploadBackup(token: string, walletId: string, encryptedBackup: s
     body: JSON.stringify({ encrypted_backup: encryptedBackup }),
   });
 }
-

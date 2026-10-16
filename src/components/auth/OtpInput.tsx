@@ -48,6 +48,8 @@ export function OtpInput({
           onPaste={onPaste}
           disabled={disabled}
           inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          aria-label={`Digit ${i + 1} of 6`}
           maxLength={1}
           className="h-12 w-10 rounded-lg border border-border bg-surface-sunken text-center text-lg font-semibold text-foreground focus:border-burgundy-bright focus:outline-none disabled:opacity-60"
         />

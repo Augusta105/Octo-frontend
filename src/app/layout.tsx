@@ -39,7 +39,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Blocking, before first paint — otherwise every load flashes the default theme first. */}
+        {/* Blocking, before first paint — allowlisted by the SHA-256 hash in the proxy, so routes stay static. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">

@@ -3,6 +3,7 @@
 "use client";
 
 import { apiFetch } from "./api";
+import { clearLocalBackups } from "./sdk/store";
 
 const TOKEN_KEY = "octo_token";
 
@@ -67,7 +68,7 @@ export async function updateUsername(token: string, username: string): Promise<U
 /** What to show for a user when no full profile page makes sense — falls back to the email
  * handle until they set a username. */
 export function displayName(user: Pick<User, "email" | "username">): string {
-  return user.username ?? user.email.split("@")[0];
+  return user.username ?? user.email.split("@")[0] ?? user.email;
 }
 
 // --- token storage (localStorage; bearer-token auth, not cookies) ---
@@ -84,3 +85,17 @@ export function getToken(): string | null {
 export function clearToken() {
   if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
 }
+
+/**
+ * Single sign-out helper: clears all local key backups then removes the session token.
+ * Removing TOKEN_KEY fires a storage event that other tabs use to sign out in lock-step.
+ * Always call this instead of clearToken() directly.
+ */
+export function signOut() {
+  if (typeof window === "undefined") return;
+  clearLocalBackups();
+  clearToken();
+}
+
+/** The localStorage key watched by the cross-tab storage listener in useAuth. */
+export { TOKEN_KEY };

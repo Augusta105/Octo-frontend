@@ -1,25 +1,26 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
+import { useWallet } from "@/lib/useWallet";
 import {
-  getWallet,
   listTransactionsPage,
-  stroopsToAmount,
   displayAssetCode,
-  type WalletView,
   type Transaction,
 } from "@/lib/wallets";
-import { WalletSidebar } from "@/components/dashboard/WalletSidebar";
-import { DashboardBackground } from "@/components/dashboard/DashboardBackground";
+import { explorerTxUrl } from "@/lib/network";
 import { Modal, CopyField } from "@/components/dashboard/Modal";
 import { Stat, ActionButton, Panel, Empty } from "@/components/dashboard/WalletUI";
 import { Pagination } from "@/components/dashboard/Pagination";
 import { PageSpinner } from "@/components/OctoSpinner";
+import { formatStroops } from "@/lib/amount";
+import { usePolling } from "@/lib/usePolling";
+import { ExportTransactionsCsvButton } from "@/components/export/ExportTransactionsCsvButton";
+import { RelativeTime } from "@/components/RelativeTime";
 
 // Dynamic render so the strict nonce CSP (src/proxy.ts) applies — matches the other
 // /dashboard/wallets/:id/* pages, which all read wallet-scoped data.
+import { WalletPageShell } from "@/components/dashboard/WalletPageShell";
 export const dynamic = "force-dynamic";
 
 export default function TransactionsPage({
@@ -28,9 +29,9 @@ export default function TransactionsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { user, token, loading, logout } = useAuth();
+  const { user, token, loading } = useAuth();
 
-  const [wallet, setWallet] = useState<WalletView | null>(null);
+  const { wallet } = useWallet(id);
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [assetFilter, setAssetFilter] = useState<string>("all");
@@ -69,25 +70,25 @@ export default function TransactionsPage({
   );
 
   function refresh() {
-    load(cursors[pageIndex]);
+    load(cursors[pageIndex] ?? null);
   }
 
   useEffect(() => {
     if (!token) return;
-    getWallet(token, id)
-      .then(setWallet)
-      .catch(() => setWallet(null));
     load(null);
   }, [token, id, load]);
 
   // Silently re-fetch in the background so a deposit (e.g. from a payment link) shows up without
   // needing a manual refresh. Only page 1 auto-refreshes — re-fetching a deeper page would fight
   // the user as rows shift underneath them.
-  useEffect(() => {
-    if (!token || pageIndex !== 0) return;
-    const interval = setInterval(() => load(null, { silent: true }), 5000);
-    return () => clearInterval(interval);
-  }, [token, pageIndex, load]);
+  const pollFn = useCallback(
+    async () => {
+      if (!token || pageIndex !== 0) return;
+      await load(null, { silent: true });
+    },
+    [token, pageIndex, load],
+  );
+  usePolling(pollFn, 5000);
 
   function goNext() {
     if (!nextCursor) return;
@@ -100,7 +101,7 @@ export default function TransactionsPage({
     if (pageIndex === 0) return;
     const target = cursors[pageIndex - 1];
     setPageIndex((i) => i - 1);
-    load(target);
+    load(target ?? null);
   }
 
   // Tabs are per-asset (not per-status or per-op-type, which don't exist on Stellar the way
@@ -130,37 +131,13 @@ export default function TransactionsPage({
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background">
-      <DashboardBackground />
+    <>
+    <WalletPageShell
+      walletId={id}
+      walletName={wallet?.label ?? "Master wallet"}
+      section="Transactions"
+    >
 
-      <div className="relative z-10 bg-burgundy/20 py-2 text-center text-xs text-burgundy-bright">
-        You are currently on <strong>test mode</strong> (Stellar testnet).
-      </div>
-      <div className="relative z-10 flex flex-1">
-        <WalletSidebar
-          walletId={id}
-          walletName={wallet?.label ?? "Master wallet"}
-        />
-
-        <div className="flex flex-1 flex-col">
-          <header className="flex items-center justify-between border-b border-border px-8 py-4">
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Link href="/dashboard" className="hover:text-foreground">
-                My Wallets
-              </Link>
-              <span>›</span>
-              <Link href={`/dashboard/wallets/${id}`} className="hover:text-foreground">
-                {wallet?.label ?? "Master wallet"}
-              </Link>
-              <span>›</span>
-              <span className="text-foreground">Transactions</span>
-            </div>
-            <button onClick={logout} className="text-sm text-muted hover:text-foreground">
-              ⏻
-            </button>
-          </header>
-
-          <main className="flex-1 px-8 py-8">
           <div className="mx-auto w-full max-w-6xl space-y-6">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Transactions</h1>
@@ -214,6 +191,7 @@ export default function TransactionsPage({
                 onClick={refresh}
                 loading={refreshing}
               />
+              <ExportTransactionsCsvButton token={token} walletId={id} />
             </div>
 
             {error && (
@@ -232,14 +210,17 @@ export default function TransactionsPage({
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
+                    <caption className="sr-only">
+                      {filtered.length} transaction{filtered.length === 1 ? "" : "s"} for this wallet
+                    </caption>
                     <thead>
                       <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted">
-                        <th className="pb-3 pr-4 font-medium">Type</th>
-                        <th className="pb-3 pr-4 font-medium">Amount</th>
-                        <th className="pb-3 pr-4 font-medium">Counterparty</th>
-                        <th className="pb-3 pr-4 font-medium">Status</th>
-                        <th className="pb-3 pr-4 font-medium">Tx hash</th>
-                        <th className="pb-3 font-medium">Date</th>
+                        <th scope="col" className="pb-3 pr-4 font-medium">Type</th>
+                        <th scope="col" className="pb-3 pr-4 font-medium">Amount</th>
+                        <th scope="col" className="pb-3 pr-4 font-medium">Counterparty</th>
+                        <th scope="col" className="pb-3 pr-4 font-medium">Status</th>
+                        <th scope="col" className="pb-3 pr-4 font-medium">Tx hash</th>
+                        <th scope="col" className="pb-3 font-medium">Date</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-divider">
@@ -260,14 +241,13 @@ export default function TransactionsPage({
               />
             </Panel>
           </div>
-          </main>
-        </div>
-      </div>
+
+    </WalletPageShell>
 
       {selected && (
         <TransactionDetail tx={selected} onClose={() => setSelected(null)} />
       )}
-    </div>
+  </>
   );
 }
 
@@ -310,7 +290,7 @@ function TxRow({
       </td>
       <td className="py-3 pr-4 font-medium text-foreground">
         {isDeposit ? "+" : "-"}
-        {stroopsToAmount(tx.amount_stroops)} {displayAssetCode(tx.asset_code)}
+        {formatStroops(tx.amount_stroops)} {displayAssetCode(tx.asset_code)}
       </td>
       <td className="py-3 pr-4 font-mono text-xs text-muted">
         {counterparty ? `${counterparty.slice(0, 6)}…${counterparty.slice(-6)}` : "—"}
@@ -324,11 +304,7 @@ function TxRow({
           : "—"}
       </td>
       <td className="py-3 text-muted">
-        {new Date(tx.created_at).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })}
+        <RelativeTime date={tx.created_at} />
       </td>
     </tr>
   );
@@ -375,7 +351,7 @@ function TransactionDetail({
           <p className="text-xs text-muted">Amount</p>
           <p className="mt-1 text-xl font-semibold text-foreground">
             {isDeposit ? "+" : "-"}
-            {stroopsToAmount(tx.amount_stroops)} {displayAssetCode(tx.asset_code)}
+            {formatStroops(tx.amount_stroops)} {displayAssetCode(tx.asset_code)}
           </p>
         </div>
 
@@ -408,7 +384,7 @@ function TransactionDetail({
 
         {tx.stellar_tx_hash && (
           <a
-            href={`https://stellar.expert/explorer/testnet/tx/${tx.stellar_tx_hash}`}
+            href={explorerTxUrl(tx.stellar_tx_hash)}
             target="_blank"
             rel="noopener noreferrer"
             className="block text-center text-xs text-burgundy-bright underline decoration-burgundy-bright/40 underline-offset-2 transition-colors hover:decoration-burgundy-bright"

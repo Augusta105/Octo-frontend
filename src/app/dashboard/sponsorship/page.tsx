@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
-import { listWallets, type WalletView } from "@/lib/wallets";
+import { listAllWallets, type WalletView } from "@/lib/wallets";
 import {
   getSponsorshipConfig,
-  stroopsToXlm,
   type SponsorshipConfig,
 } from "@/lib/sponsorship";
+import { asAuthToken, asWalletId } from "@/lib/brands";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { PageSpinner } from "@/components/OctoSpinner";
+import { SponsorshipSummary } from "@/components/sponsorship/SponsorshipSummary";
 
 type WalletSponsorship = {
   wallet: WalletView;
@@ -20,21 +21,35 @@ type WalletSponsorship = {
 export default function SponsorshipPage() {
   const { user, token, loading, logout } = useAuth();
   const [rows, setRows] = useState<WalletSponsorship[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadData(signal?: AbortSignal) {
     if (!token) return;
-    listWallets(token)
+    setLoadError(null);
+    listAllWallets(token)
       .then(async (wallets) => {
         // Only the sponsorship config is fetched per wallet — not full wallet details.
         const configs = await Promise.all(
           wallets.map((w) =>
-            getSponsorshipConfig(w.id, token).catch(() => null),
+            getSponsorshipConfig(asAuthToken(token), asWalletId(w.id)).catch(() => null),
           ),
         );
-        return wallets.map((wallet, i) => ({ wallet, config: configs[i] }));
+        return wallets.map((wallet, i) => ({ wallet, config: configs[i] ?? null }));
       })
       .then(setRows)
-      .catch(() => setRows([]));
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setRows([]);
+        setLoadError(e instanceof Error ? e.message : "Could not load sponsorship data.");
+      });
+  }
+
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   if (loading || !user) {
@@ -65,6 +80,18 @@ export default function SponsorshipPage() {
         </section>
 
         {/* Per-wallet cards */}
+        {loadError && (
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger flex items-center justify-between gap-4">
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={() => loadData()}
+              className="shrink-0 rounded-lg border border-danger-border px-3 py-1 text-xs font-medium hover:bg-danger-border/20"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {rows === null ? (
           <p className="py-10 text-center text-sm text-muted">Loading wallets…</p>
         ) : rows.length === 0 ? (
@@ -73,7 +100,7 @@ export default function SponsorshipPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {rows.map(({ wallet, config }) => (
               <WalletCard key={wallet.id} wallet={wallet} config={config} />
-            ))}
+            ))
           </div>
         )}
       </div>
@@ -110,24 +137,7 @@ function WalletCard({
         </span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <dt className="text-[11px] text-muted">Max fee / tx</dt>
-          <dd className="mt-0.5 text-foreground">
-            {config?.per_tx_fee_cap_stroops != null
-              ? stroopsToXlm(config.per_tx_fee_cap_stroops)
-              : "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-[11px] text-muted">Daily budget</dt>
-          <dd className="mt-0.5 text-foreground">
-            {config?.daily_budget_stroops != null
-              ? stroopsToXlm(config.daily_budget_stroops)
-              : "—"}
-          </dd>
-        </div>
-      </dl>
+      <SponsorshipSummary config={config} className="mt-4" />
 
       <Link
         href={`/dashboard/wallets/${wallet.id}/sponsorship`}
