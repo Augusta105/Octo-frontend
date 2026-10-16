@@ -11,6 +11,7 @@ import { AssetIcon } from "@/components/dashboard/AssetIcon";
 import { Stat, ActionButton, Panel, Empty } from "@/components/dashboard/WalletUI";
 import { PageSpinner } from "@/components/OctoSpinner";
 import { SpendableReservedBreakdown } from "@/components/assets/SpendableReservedBreakdown";
+import { network } from "@/lib/network";
 
 // Dynamic render so the strict nonce CSP (src/proxy.ts) applies — this page reads wallet
 // balances, matching the other /dashboard/wallets/:id/* pages.
@@ -96,7 +97,11 @@ export default function AssetsPage({
                   className="accent-[var(--burgundy-bright)]"
                 />
                 Show USD equivalent
-                <span className="text-[10px] text-muted/60">(unavailable on testnet)</span>
+                <span className="text-[10px] text-muted/60">
+                  {network.isTestnet
+                    ? `(unavailable on ${network.displayName})`
+                    : "(live pricing)"}
+                </span>
               </label>
             </div>
 
@@ -201,7 +206,11 @@ function AssetRow({
       <td className="py-3 pr-4 font-medium text-foreground">
         {balance.balance} {code}
         {showUsd && (
-          <span className="ml-2 text-[11px] text-muted">(USD n/a on testnet)</span>
+          <span className="ml-2 text-[11px] text-muted">
+            {network.isTestnet
+              ? `(USD n/a on ${network.displayName})`
+              : "(USD n/a)"}
+          </span>
         )}
       </td>
       <td className="py-3 pr-4 text-muted">
