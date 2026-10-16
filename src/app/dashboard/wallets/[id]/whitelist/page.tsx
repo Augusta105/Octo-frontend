@@ -82,8 +82,8 @@ export default function WhitelistPage({
   }, [loadAllowlist]);
 
   const allowlistLoaded = allowlistLoadState === "loaded";
-  const allowlistChangesReady = false;
-  const controlsDisabled = !allowlistLoaded || !allowlistChangesReady;
+  // Controls stay disabled until the real allowlist state has loaded, so a default never gets saved.
+  const controlsDisabled = !allowlistLoaded;
 
   async function applyToggle(next: boolean) {
     if (!token || controlsDisabled) return;
@@ -213,12 +213,6 @@ export default function WhitelistPage({
               />
             </div>
 
-            {!allowlistChangesReady && (
-              <p className="rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-muted">
-                Additional verification is required before changing this allowlist.
-              </p>
-            )}
-
             {allowlistLoadState === "error" && (
               <ErrorState
                 message={allowlistLoadError ?? "Could not load the withdrawal allowlist."}
@@ -246,9 +240,7 @@ export default function WhitelistPage({
               <p className="text-sm text-muted">
                 {!allowlistLoaded
                   ? "Allowlist status is unavailable until it loads successfully."
-                  : !allowlistChangesReady
-                    ? "Additional verification is required before changing this setting."
-                    : enabled
+                  : enabled
                   ? "Enabled — payments to destinations not listed below will be rejected with a 403."
                   : entries.length === 0
                     ? "Disabled. Add at least one address below before you can enable enforcement."
