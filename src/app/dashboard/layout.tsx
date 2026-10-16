@@ -5,6 +5,10 @@ export const metadata: Metadata = {
     default: "Dashboard",
     template: "%s",
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

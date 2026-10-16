@@ -8,7 +8,7 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_OCTO_API_URL ?? "http://localhost:8080";
 
-/** Default request timeout; callers may override via AbortSignal. */
+/** Default request timeout; long-running callers may override it explicitly. */
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 export class ApiError extends Error {
@@ -55,12 +55,12 @@ export function path(
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit & { token?: string; signal?: AbortSignal } = {},
+  options: RequestInit & { token?: string; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
-  const { token, signal: callerSignal, headers, ...rest } = options;
+  const { token, signal: callerSignal, headers, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = options;
 
   // Combine caller signal with a hard timeout so hung connections don't spin forever.
-  const timeoutSignal = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const signal = callerSignal
     ? AbortSignal.any([callerSignal, timeoutSignal])
     : timeoutSignal;

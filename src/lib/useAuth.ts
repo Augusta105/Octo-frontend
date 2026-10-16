@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { toast } from "sonner";
+import { ApiError } from "./api";
 import { getToken, signOut, me, type User } from "./auth";
 
 /** The page loading spinner shows for at least this long, even if auth resolves faster —
@@ -22,6 +24,8 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   // Prevent multiple concurrent redirects racing each other.
   const signingOut = useRef(false);
 
@@ -38,23 +42,44 @@ export function useAuth() {
     router.replace(`/login${query}`);
   }
 
+  function retrySessionCheck() {
+    setAuthError(null);
+    setLoading(true);
+    setRetryNonce((n) => n + 1);
+  }
+
   useEffect(() => {
     const startedAt = Date.now();
+    let active = true;
     const t = getToken();
     if (!t) {
       router.replace("/login");
       return;
     }
+    setAuthError(null);
     me(t)
       .then((u) => {
+        if (!active) return;
         setUser(u);
         setToken(t);
       })
-      .catch(() => {
-        // me() failed — could be a 401 (expired) or network error. Either way, sign out fully.
-        doSignOut("expired");
+      .catch((err: unknown) => {
+        if (!active) return;
+        if (isAuthenticationFailure(err)) {
+          doSignOut("expired");
+          return;
+        }
+        const message =
+          err instanceof Error
+            ? err.message
+            : "We could not verify your session. Check your connection and try again.";
+        setAuthError(message);
+        toast.error(message, {
+          action: { label: "Retry", onClick: retrySessionCheck },
+        });
       })
       .finally(() => {
+        if (!active) return;
         const elapsed = Date.now() - startedAt;
         const remaining = MIN_LOADING_MS - elapsed;
         if (remaining > 0) {
@@ -63,8 +88,11 @@ export function useAuth() {
           setLoading(false);
         }
       });
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, retryNonce]);
 
   useEffect(() => {
     // Handle 401 from any apiFetch anywhere on the page — apiFetch dispatches this event.
@@ -93,5 +121,9 @@ export function useAuth() {
     doSignOut();
   }
 
-  return { user, token, loading, logout };
+  return { user, token, loading, authError, retrySessionCheck, logout };
+}
+
+export function isAuthenticationFailure(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 401 || err.status === 403);
 }

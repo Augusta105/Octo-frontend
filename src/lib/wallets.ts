@@ -95,11 +95,16 @@ export function createWallet(
     encryptedBackup?: string;
     label?: string;
     description?: string;
+    idempotencyKey?: string;
   },
 ) {
   return apiFetch<CreateWalletResponse>("/v1/wallets", {
     method: "POST",
     token,
+    timeoutMs: 30_000,
+    headers: params.idempotencyKey
+      ? { "Idempotency-Key": params.idempotencyKey }
+      : undefined,
     body: JSON.stringify({
       public_key: params.publicKey,
       challenge: params.challenge,
