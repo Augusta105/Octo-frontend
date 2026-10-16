@@ -77,3 +77,43 @@ export async function assessPassword(
     feedback,
   };
 }
+
+/** Shared strength meter used by every password flow. Text carries the meaning, not colour alone. */
+export function PasswordStrengthMeter({
+  id,
+  assessment,
+}: {
+  id: string;
+  assessment: PasswordAssessment | null;
+}) {
+  const score = assessment?.score ?? -1;
+  const fill =
+    score >= 3 ? "bg-success" : score === 2 ? "bg-warning" : "bg-danger";
+  return (
+    <div id={id} className="mt-2" aria-live="polite">
+      <div className="flex gap-1" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <span
+            key={i}
+            className={`h-1.5 flex-1 rounded-full ${i < score ? fill : "bg-track"}`}
+          />
+        ))}
+      </div>
+      {assessment && (
+        <div className="mt-1.5 text-xs">
+          <p className="text-foreground">
+            Strength: <strong>{assessment.label}</strong>
+            {assessment.acceptable ? " — good to go" : " — not strong enough yet"}
+          </p>
+          {!assessment.acceptable && assessment.feedback.length > 0 && (
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
+              {assessment.feedback.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

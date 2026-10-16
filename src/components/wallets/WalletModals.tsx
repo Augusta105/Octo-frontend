@@ -375,7 +375,7 @@ export function WithdrawModal({
 
       // Unlock and sign locally — the private key never leaves this device. Only after signing
       // do we ask the server to email an OTP bound to this exact transaction.
-      const keypair = await unlockWallet(token, walletId, password);
+      const keypair = await unlockWallet(token, walletId, password, walletAddress);
       const info = await getSigningInfo(token, walletId);
       const normalized = formatStroops(checked.stroops);
       const signedXdr = needsCreate
