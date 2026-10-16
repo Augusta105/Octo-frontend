@@ -59,7 +59,7 @@ export default function DevelopersPage({
     try {
       const res = await generateApiKey(token, id);
       setFullKey(res.api_key);
-      setRevealed(true);
+      setRevealed(false);
       setKeyInfo({ wallet_id: id, configured: true, prefix: res.prefix });
     } catch (err) {
       toast.error(
@@ -125,9 +125,21 @@ export default function DevelopersPage({
               {/* one-time key banner */}
               {fullKey && (
                 <div className="mt-6 rounded-xl border border-burgundy/40 bg-burgundy/10 p-4 text-sm text-burgundy-bright">
-                  This is your API key — copy it now. It won&apos;t be shown
-                  again. Store it securely and never commit it to source
-                  control.
+                  <p>
+                    This is your API key — copy it now. It won&apos;t be shown
+                    again. Store it securely and never commit it to source
+                    control.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFullKey(null);
+                      setRevealed(false);
+                    }}
+                    className="mt-3 rounded-lg border border-burgundy/40 px-3 py-1.5 text-xs font-medium hover:bg-burgundy/10"
+                  >
+                    I&apos;ve saved the key
+                  </button>
                 </div>
               )}
 
@@ -153,9 +165,11 @@ export default function DevelopersPage({
                     {fullKey && (
                       <>
                         <button
+                          type="button"
                           onClick={() => setRevealed((v) => !v)}
                           className="text-muted hover:text-foreground"
                           title={revealed ? "Hide" : "Reveal"}
+                          aria-label={revealed ? "Hide API key" : "Reveal API key"}
                         >
                           {revealed ? "🙈" : "👁"}
                         </button>

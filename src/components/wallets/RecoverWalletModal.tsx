@@ -208,6 +208,8 @@ export function RecoverWalletModal({
             placeholder="word1 word2 word3 … word12"
             rows={3}
             spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             autoComplete="off"
             className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
           />
