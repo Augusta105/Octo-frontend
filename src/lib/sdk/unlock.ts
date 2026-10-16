@@ -22,11 +22,16 @@ export const MISSING_BACKUP_ERROR =
 /**
  * Decrypt the wallet's key with `password` and return a signing Keypair.
  * Throws with a user-facing message if there is no backup or the password is wrong.
+ *
+ * When `expectedPublicKey` is given, the unlocked keypair is bound to the wallet it is
+ * supposed to unlock: unlock fails safely if the derived public key does not match, so a
+ * tampered or wrong-wallet backup can never be used to sign.
  */
 export async function unlockWallet(
   token: string,
   walletId: string,
   password: string,
+  expectedPublicKey?: string,
 ): Promise<Keypair> {
   let backup = loadLocalBackup(walletId);
 
@@ -41,5 +46,9 @@ export async function unlockWallet(
   }
 
   const mnemonic = await decryptSeed(backup, password); // throws on wrong password
-  return fromMnemonic(mnemonic).keypair;
+  const keypair = fromMnemonic(mnemonic).keypair;
+  if (expectedPublicKey !== undefined && keypair.publicKey() !== expectedPublicKey) {
+    throw new Error("Unlocked key does not match this wallet. Aborting unlock.");
+  }
+  return keypair;
 }

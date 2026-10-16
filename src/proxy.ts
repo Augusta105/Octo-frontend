@@ -44,9 +44,22 @@ const CLOUDINARY_CDN = "https://res.cloudinary.com";
 // src/lib/theme.test.ts recomputes this and fails if the script and hash drift apart.
 const THEME_SCRIPT_HASH = "'sha256-b0IjdpRDazTe7ymepRk7Xjq0NgKhw2H6Gs56SknLntg='";
 
-// CSP violation reporting endpoint. When set, both CSP branches report violations here so an
-// injection attempt (or a regression we shipped) is visible instead of silently blocked.
-const CSP_REPORT_ENDPOINT = process.env.CSP_REPORT_URI;
+// CSP violation reporting endpoint, read from the documented CSP_REPORT_ENDPOINT variable. When
+// set to a valid absolute http(s) URL, both CSP branches report violations here so an injection
+// attempt (or a regression we shipped) is visible instead of silently blocked. Empty or malformed
+// values are ignored, leaving reporting disabled.
+function cspReportEndpoint(): string | undefined {
+  const raw = process.env.CSP_REPORT_ENDPOINT?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 const CSP_REPORT_GROUP = "csp-endpoint";
 
 export function proxy(request: NextRequest) {
@@ -70,10 +83,11 @@ export function proxy(request: NextRequest) {
   const isSigningSurface =
     /^\/dashboard(\/|$)/.test(pathname) || /^\/pay(\/|$)/.test(pathname);
 
-  // Only add reporting directives when an endpoint is configured, so an unset variable leaves
-  // the CSP and headers exactly as before.
-  const reportDirectives = CSP_REPORT_ENDPOINT
-    ? [`report-uri ${CSP_REPORT_ENDPOINT}`, `report-to ${CSP_REPORT_GROUP}`]
+  // Only add reporting directives when a valid endpoint is configured, so an unset or malformed
+  // variable leaves the CSP and headers exactly as before.
+  const reportEndpoint = cspReportEndpoint();
+  const reportDirectives = reportEndpoint
+    ? [`report-uri ${reportEndpoint}`, `report-to ${CSP_REPORT_GROUP}`]
     : [];
 
   const requestHeaders = new Headers(request.headers);
@@ -125,10 +139,10 @@ export function proxy(request: NextRequest) {
 
   response.headers.set("Content-Security-Policy", csp);
   // Reporting-Endpoints pairs with the CSP `report-to` directive so browsers can POST violations.
-  if (CSP_REPORT_ENDPOINT) {
+  if (reportEndpoint) {
     response.headers.set(
       "Reporting-Endpoints",
-      `${CSP_REPORT_GROUP}="${CSP_REPORT_ENDPOINT}"`,
+      `${CSP_REPORT_GROUP}="${reportEndpoint}"`,
     );
   }
   // Defense-in-depth headers.

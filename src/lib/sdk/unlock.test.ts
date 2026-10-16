@@ -82,6 +82,22 @@ describe("unlockWallet", () => {
     await expect(unlockWallet(TOKEN, WALLET_ID, "wrong-password")).rejects.toThrow();
   });
 
+  // Reject unlock when the derived key does not match the expected wallet public key.
+  it("rejects when the unlocked key does not match the expected wallet", async () => {
+    storage.set(`octo_wallet_backup_${WALLET_ID}`, validBackupString);
+    const wrongKey = fromMnemonic("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about").publicKey();
+    await expect(unlockWallet(TOKEN, WALLET_ID, TEST_PASSWORD, wrongKey)).rejects.toThrow(
+      "Unlocked key does not match this wallet. Aborting unlock.",
+    );
+  });
+
+  // Accept unlock when the derived key matches the expected wallet public key.
+  it("accepts when the unlocked key matches the expected wallet", async () => {
+    storage.set(`octo_wallet_backup_${WALLET_ID}`, validBackupString);
+    const keypair = await unlockWallet(TOKEN, WALLET_ID, TEST_PASSWORD, expectedPublicKey);
+    expect(keypair.publicKey()).toBe(expectedPublicKey);
+  });
+
   // Reject unlock attempt and do not cache if server blob is malformed.
   it("rejects when server blob is malformed and does not cache invalid blob", async () => {
     vi.mocked(getBackup).mockResolvedValueOnce({
