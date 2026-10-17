@@ -14,13 +14,12 @@ import {
   listTransactions,
   listRecentTransactions,
   createAddress,
-  usdcForNetwork,
   type Balance,
   type Address,
   type Transaction,
 } from "@/lib/wallets";
 import { getSigningInfo, type SigningInfo } from "@/lib/sdk";
-import { NETWORK_PASSPHRASE_TESTNET } from "@/lib/networkConfig";
+import { network } from "@/lib/network";
 import { explorerTxUrl } from "@/lib/network";
 import { parseAmount, formatStroops } from "@/lib/amount";
 import {
@@ -138,8 +137,7 @@ export default function WalletOverview({
 
   const xlm = balances.find((b) => b.asset_type === "native");
   const xlmAmount = xlm ? xlm.balance : "0";
-  // Use testnet passphrase as the display default; the balance issuer check is exact.
-  const usdc = usdcForNetwork(NETWORK_PASSPHRASE_TESTNET);
+  const usdc = network.usdc;
   const usdcBalance = balances.find(
     (b) => b.asset_code === usdc.code && b.asset_issuer === usdc.issuer,
   );

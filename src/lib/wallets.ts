@@ -6,7 +6,7 @@ import { apiFetch, path } from "./api";
 import { parseAmount, toApiStroops } from "./amount";
 import { pageQuery, type Paginated, type PageOpts } from "./pagination";
 import { network } from "./network";
-export { usdcForNetwork } from "./networkConfig";
+export { usdcForNetwork } from "./network";
 
 export type { Paginated, PageOpts } from "./pagination";
 type RequestOptions = { signal?: AbortSignal };
@@ -278,12 +278,6 @@ export function displayAssetCode(assetCode: string): string {
 export function amountToStroops(xlm: string): number | null {
   return toApiStroops(parseAmount(xlm));
 }
-
-/**
- * Active network's USDC asset (code + issuer), sourced from the network config module.
- * @deprecated Import `network.usdc` from `@/lib/network` directly in new code.
- */
-export const USDC_TESTNET = network.usdc as { code: string; issuer: string };
 
 // Withdrawals and trustlines are now built + signed CLIENT-SIDE via `@/lib/sdk` and relayed
 // through `submitSigned` — the server holds no key to sign them. The old custodial

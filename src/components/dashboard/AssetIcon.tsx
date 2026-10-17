@@ -1,10 +1,8 @@
-import { usdcForNetwork, NETWORK_PASSPHRASE_MAINNET, NETWORK_PASSPHRASE_TESTNET } from "@/lib/networkConfig";
+import { NETWORK_CONFIGS } from "@/lib/network";
 
-// Known USDC issuers — display the brand icon for either network's canonical issuer.
-const KNOWN_USDC_ISSUERS = new Set([
-  usdcForNetwork(NETWORK_PASSPHRASE_MAINNET).issuer,
-  usdcForNetwork(NETWORK_PASSPHRASE_TESTNET).issuer,
-]);
+const KNOWN_USDC_ISSUERS = new Set(
+  Object.values(NETWORK_CONFIGS).map((c) => c.usdc.issuer),
+);
 
 // The white disc is each asset mark's own backdrop — the glyphs are solid black, so it stays
 // white in both themes rather than following the surface tokens.
