@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { network } from "@/lib/network";
 import { GasPumpIcon } from "./icons";
 
 export function WalletSidebar({
@@ -26,7 +27,7 @@ export function WalletSidebar({
     { label: "Transactions", href: `${base}/transactions`, icon: "◷" },
     { label: "Addresses", href: `${base}/addresses`, icon: "▢" },
     { label: "Payment Links", href: `${base}/payment-links`, icon: "⎘" },
-    { label: "Beneficiaries", href: `${base}/beneficiaries`, icon: "⚇" },
+    { label: "Withdrawal allowlist", href: `${base}/whitelist`, icon: "⚇" },
     {
       label: "Sponsorship",
       href: `${base}/sponsorship`,
@@ -77,7 +78,7 @@ export function WalletSidebar({
               Stellar
             </span>
             <span className="rounded-md bg-hover px-2 py-0.5 text-[10px] text-muted">
-              Testnet
+              {network.displayName}
             </span>
           </div>
         </div>
