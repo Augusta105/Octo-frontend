@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { ApiError } from "./api";
-import { getToken, signOut, me, type User } from "./auth";
+import {
+  getToken,
+  signOut,
+  me,
+  broadcastLogout,
+  subscribeToLogout,
+  type User,
+} from "./auth";
 
 /** The page loading spinner shows for at least this long, even if auth resolves faster —
  * otherwise on a fast connection it flashes for a frame and the animation never registers. */
@@ -34,6 +41,8 @@ export function useAuth() {
     if (signingOut.current) return;
     signingOut.current = true;
     signOut();
+    // Notify other tabs so they sign out too (storage event is a fallback).
+    broadcastLogout();
     setUser(null);
     setToken(null);
     // Encode the current path so the user lands back here after re-login.
@@ -107,9 +116,15 @@ export function useAuth() {
       }
     }
 
+    // Sign out when another tab broadcasts a logout over BroadcastChannel.
+    const unsubscribeLogout = subscribeToLogout(() => {
+      doSignOut();
+    });
+
     window.addEventListener("session-expired", onSessionExpired);
     window.addEventListener("storage", onStorage);
     return () => {
+      unsubscribeLogout();
       window.removeEventListener("session-expired", onSessionExpired);
       window.removeEventListener("storage", onStorage);
     };

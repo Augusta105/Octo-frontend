@@ -19,8 +19,13 @@ const NAV: {
     href: "/dashboard/sponsorship",
     icon: <GasPumpIcon />,
   },
-  { label: "Asset Recovery", href: "/dashboard/recovery", icon: "↺" },
-  { label: "Developers", href: "/dashboard/developers", icon: "›_" },
+  {
+    label: "Asset Recovery",
+    href: "/dashboard/recovery",
+    icon: "↺",
+    soon: true,
+  },
+  { label: "Developers", href: "/dashboard/developers", icon: "›_", soon: true },
   { label: "Audit Logs", href: "/dashboard/audit", icon: "▤" },
   { label: "Settings", href: "/dashboard/settings", icon: "⚙" },
 ];

@@ -125,7 +125,7 @@ To avoid a big-bang cutover:
 | TBD | Backend: CORS credentials configuration | — |
 | TBD | Frontend: remove `localStorage` token helpers behind flag | Backend cookie issuance |
 | TBD | Frontend: `credentials: "include"` on `apiFetch` | Backend CORS |
-| TBD | Frontend: replace `storage` cross-tab logout with `BroadcastChannel` | — |
+| #493 | Frontend: replace `storage` cross-tab logout with `BroadcastChannel` (done; storage listener kept as fallback) | — |
 
 ---
 
