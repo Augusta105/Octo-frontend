@@ -70,7 +70,7 @@ function celebrate() {
   });
 }
 
-// Sends the payer back to the merchant's site after a short delay; fails closed on a bad URL.
+// Sends the payer back to the merchant's site after a short delay; only https: URLs are followed and it fails closed on a bad URL.
 function redirectAfterConfirm(redirectUrl: string, paymentId: string, slugValue: string) {
   const error = validateRedirectUrl(redirectUrl);
   if (error) {
@@ -79,6 +79,7 @@ function redirectAfterConfirm(redirectUrl: string, paymentId: string, slugValue:
   }
   try {
     const url = new URL(redirectUrl);
+    if (url.protocol !== "https:") return;
     url.searchParams.set("status", "success");
     url.searchParams.set("payment_id", paymentId);
     url.searchParams.set("slug", slugValue);

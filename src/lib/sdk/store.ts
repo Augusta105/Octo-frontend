@@ -67,7 +67,7 @@ export function clearLocalBackups() {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(PREFIX)) keys.push(key);
+      if (key !== null && key.startsWith(PREFIX)) keys.push(key);
     }
     for (const key of keys) localStorage.removeItem(key);
   } catch {
