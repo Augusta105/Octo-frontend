@@ -5,13 +5,14 @@ import { Sidebar } from "./Sidebar";
 import { Parallax } from "@/components/Parallax";
 import { DashboardBackground } from "./DashboardBackground";
 import { useIdleTimer } from "@/lib/useIdleTimer";
+import { network } from "@/lib/network";
 import type { User } from "@/lib/auth";
 
 /** 15 minutes of inactivity locks the session; warn 1 minute before. */
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 const WARN_BEFORE_MS = 60 * 1000;
 
-/** Dashboard chrome: test-mode banner, idle-warning banner, sidebar, topbar, content. */
+/** Dashboard chrome: network banner, idle-warning banner, sidebar, topbar, content. */
 export function DashboardShell({
   user,
   title,
@@ -39,11 +40,13 @@ export function DashboardShell({
     <div className="relative flex min-h-screen flex-col bg-background">
       <DashboardBackground />
 
-      {/* test-mode banner */}
-      <div className="test-mode-banner relative z-10 bg-burgundy/20 py-2 text-center text-xs text-burgundy-bright">
-        You are currently on <strong>test mode</strong> (Stellar testnet).
-        Mainnet support is coming soon.
-      </div>
+      {/* network banner */}
+      {network.isTestnet && (
+        <div className="test-mode-banner relative z-10 bg-burgundy/20 py-2 text-center text-xs text-burgundy-bright">
+          You are currently on <strong>{network.displayName}</strong>.
+          Mainnet support is coming soon.
+        </div>
+      )}
 
       {/* idle-warning banner: shown for 1 minute before auto-lock */}
       {idleState === "warning" && !dismissed && (
@@ -66,12 +69,6 @@ export function DashboardShell({
           <header className="flex items-center justify-between border-b border-border px-8 py-4">
             <h1 className="text-lg font-semibold text-foreground">{title}</h1>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-2 text-sm text-muted">
-                Test Mode
-                <span className="relative inline-block h-5 w-9 rounded-full bg-burgundy/40">
-                  <span className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-burgundy-bright" />
-                </span>
-              </span>
               <button
                 onClick={onLogout}
                 className="text-sm text-muted transition-colors hover:text-foreground"
