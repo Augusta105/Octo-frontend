@@ -117,3 +117,47 @@ export function signOut() {
 
 /** The localStorage key watched by the cross-tab storage listener in useAuth. */
 export { TOKEN_KEY };
+
+// --- cross-tab logout (BroadcastChannel; storage event stays as fallback) ---
+
+/** Channel used to broadcast logout to other tabs. */
+export const LOGOUT_CHANNEL = "octo_logout";
+
+type LogoutMessage = { type: "logout" };
+
+function getLogoutChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
+  try {
+    return new BroadcastChannel(LOGOUT_CHANNEL);
+  } catch {
+    return null;
+  }
+}
+
+/** Notify other tabs that this tab signed out. No-op where BroadcastChannel is unavailable. */
+export function broadcastLogout() {
+  const channel = getLogoutChannel();
+  if (!channel) return;
+  try {
+    channel.postMessage({ type: "logout" } satisfies LogoutMessage);
+  } catch {
+    // Best-effort; the storage event fallback still covers other tabs.
+  } finally {
+    channel.close();
+  }
+}
+
+/** Run `cb` when another tab broadcasts a logout. Returns an unsubscribe function. */
+export function subscribeToLogout(cb: () => void): () => void {
+  const channel = getLogoutChannel();
+  if (!channel) return () => {};
+  const handler = (event: MessageEvent) => {
+    const data = event.data as LogoutMessage | null;
+    if (data && data.type === "logout") cb();
+  };
+  channel.addEventListener("message", handler);
+  return () => {
+    channel.removeEventListener("message", handler);
+    channel.close();
+  };
+}

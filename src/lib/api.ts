@@ -127,3 +127,29 @@ export async function apiFetch<T>(
 
   return body.data;
 }
+
+/** A single active session as returned by the backend. */
+export type Session = {
+  id: string;
+  createdAt: string;
+  lastUsedAt?: string;
+  userAgent?: string;
+  ip?: string;
+  current?: boolean;
+};
+
+/** List the caller's active sessions. */
+export async function listSessions(token: string): Promise<Session[]> {
+  const data = await apiFetch<Session[] | { sessions: Session[] }>(path`/sessions`, { token });
+  return Array.isArray(data) ? data : data.sessions;
+}
+
+/** Revoke a single session by id, signing that device out. */
+export async function revokeSession(token: string, id: string): Promise<void> {
+  await apiFetch<unknown>(path`/sessions/${id}`, { method: "DELETE", token });
+}
+
+/** Revoke every session except the caller's current one. */
+export async function revokeOtherSessions(token: string): Promise<void> {
+  await apiFetch<unknown>(path`/sessions`, { method: "DELETE", token });
+}
