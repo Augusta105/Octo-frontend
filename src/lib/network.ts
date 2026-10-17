@@ -52,6 +52,20 @@ if (!config) {
 
 export const network: NetworkConfig = config;
 
+export const NETWORK_CONFIGS: Record<string, NetworkConfig> = CONFIGS;
+
+/** Returns the per-network config for a Stellar network passphrase; throws on unknown input. */
+export function configForPassphrase(passphrase: string): NetworkConfig {
+  const found = Object.values(CONFIGS).find((c) => c.passphrase === passphrase);
+  if (!found) throw new Error(`Unknown network passphrase "${passphrase}".`);
+  return found;
+}
+
+/** Returns the USDC asset for a Stellar network passphrase; throws on unknown input. */
+export function usdcForNetwork(passphrase: string): { code: string; issuer: string } {
+  return configForPassphrase(passphrase).usdc;
+}
+
 /** Returns the stellar.expert URL for a transaction hash. */
 export function explorerTxUrl(hash: string): string {
   return `${network.explorerBase}/tx/${hash}`;

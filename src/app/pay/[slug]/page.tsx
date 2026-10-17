@@ -17,7 +17,7 @@ import {
   type PaymentIntent,
   type PaymentStatus,
 } from "@/lib/payment-links";
-import { usdcForNetwork } from "@/lib/networkConfig";
+import { usdcForNetwork } from "@/lib/network";
 import { network } from "@/lib/network";
 import { buildUnsignedPayment, assertNetworkConsistency } from "@/lib/sdk";
 import { OctoSpinner } from "@/components/OctoSpinner";
@@ -586,8 +586,8 @@ export default function PayPage({
                     value={sep7PayUri({
                       destination: intent.deposit_address,
                       amount: formatStroops(intent.amount_usdc_stroops),
-                      assetCode: usdcForNetwork(networkPassphrase).code,
-                      assetIssuer: usdcForNetwork(networkPassphrase).issuer,
+                      assetCode: network.usdc.code,
+                      assetIssuer: network.usdc.issuer,
                     })}
                     label="Scan with a Stellar wallet to pay the exact amount"
                   />
