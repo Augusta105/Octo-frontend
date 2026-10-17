@@ -453,6 +453,7 @@ export default function WalletOverview({
         <ChangeWalletPasswordModal
           token={token}
           walletId={id}
+          walletAddress={wallet?.address}
           onClose={() => setShowChangePassword(false)}
           onDone={() => setShowChangePassword(false)}
         />

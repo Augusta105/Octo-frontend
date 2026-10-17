@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { signup, login, verifyEmail, resendOtp, needsVerification, saveToken, verify2fa } from "@/lib/auth";
 import { errorMessage } from "@/lib/api";
 import { assessPassword, MIN_PASSWORD_SCORE } from "@/lib/passwordStrength";
-import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
+import { PasswordStrengthMeter } from "@/lib/passwordStrength";
 import { OtpInput } from "./OtpInput";
 
 type Mode = "signup" | "login";
@@ -75,10 +75,10 @@ export function AuthForm({
       setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
-    if (isSignup && assessPassword(password, [email]).score < MIN_PASSWORD_SCORE) {
+    if (isSignup) { const a = await assessPassword(password, [email]); if (a.score < MIN_PASSWORD_SCORE) {
       setError("Please choose a stronger password.");
       return;
-    }
+    }}
 
     setLoading(true);
     try {
@@ -300,7 +300,7 @@ export function AuthForm({
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/60 focus:outline-none"
             />
           </div>
-          {isSignup && <PasswordStrengthMeter password={password} userInputs={[email]} />}
+
           {!isSignup && <Link href="/forgot-password" className="mt-2 inline-block text-xs text-muted hover:text-foreground">Forgot password?</Link>}
         </div>
 

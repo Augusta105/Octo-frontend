@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ApiError } from "@/lib/api";
 import { requestPasswordReset, resetPassword, MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/passwordApi";
-import { passwordStrength, MIN_PASSWORD_SCORE } from "@/lib/passwordStrength";
-import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
+import { assessPassword, MIN_PASSWORD_SCORE } from "@/lib/passwordStrength";
+import { PasswordStrengthMeter } from "@/lib/passwordStrength";
 import { OtpInput } from "./OtpInput";
 
 type Step = "email" | "code" | "password" | "done";
@@ -58,7 +58,7 @@ export function ForgotPasswordForm() {
       setError(`Password must be at least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters.`);
       return;
     }
-    if (passwordStrength(password, [email]).score < MIN_PASSWORD_SCORE) {
+    if ((await assessPassword(password, [email])).score < MIN_PASSWORD_SCORE) {
       setError("Choose a stronger password.");
       return;
     }
@@ -154,7 +154,6 @@ export function ForgotPasswordForm() {
               className={inputClass}
             />
           </label>
-          <PasswordStrengthMeter password={password} userInputs={[email]} />
           <label className="block text-sm font-medium text-foreground">
             Confirm new password
             <input

@@ -166,11 +166,11 @@ export function HighlightedAddress({ address }: { address: string }) {
   return (
     <span className="break-all font-mono text-xs text-foreground">
       <span className="rounded bg-burgundy-bright/20 px-0.5 font-semibold text-burgundy-bright">
-        {address.slice(0, 1)}
+        {address.slice(0, 4)}
       </span>
-      {address.slice(1, -1)}
+      {address.slice(4, -4)}
       <span className="rounded bg-burgundy-bright/20 px-0.5 font-semibold text-burgundy-bright">
-        {address.slice(-1)}
+        {address.slice(-4)}
       </span>
     </span>
   );
