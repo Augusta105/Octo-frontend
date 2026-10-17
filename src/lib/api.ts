@@ -128,6 +128,59 @@ export async function apiFetch<T>(
   return body.data;
 }
 
+/** TOTP enrolment payload: the shared secret and an `otpauth://` URL for QR rendering. */
+export type TotpSetup = {
+  secret: string;
+  otpauthUrl: string;
+};
+
+/** Begin TOTP enrolment for the authenticated user. */
+export function setupTotp(token: string): Promise<TotpSetup> {
+  return apiFetch<TotpSetup>("/auth/2fa/setup", { method: "POST", token });
+}
+
+/** Confirm enrolment with a code from the authenticator app; returns one-time recovery codes. */
+export function verifyTotpEnrolment(
+  token: string,
+  code: string,
+): Promise<{ recoveryCodes: string[] }> {
+  return apiFetch<{ recoveryCodes: string[] }>("/auth/2fa/verify", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ code }),
+  });
+}
+
+/** Fetch the current recovery codes (regenerating them invalidates the previous set). */
+export function getRecoveryCodes(token: string): Promise<{ recoveryCodes: string[] }> {
+  return apiFetch<{ recoveryCodes: string[] }>("/auth/2fa/recovery-codes", { token });
+}
+
+/** Disable TOTP; requires the account password as confirmation. */
+export function disableTotp(token: string, password: string): Promise<void> {
+  return apiFetch<void>("/auth/2fa/disable", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ password }),
+  });
+}
+
+/**
+ * Complete a login challenge with a TOTP or recovery code.
+ *
+ * Unauthenticated: the challenge token from the login response stands in for a session token.
+ */
+export function verifyTotpChallenge(
+  challengeToken: string,
+  code: string,
+): Promise<{ token: string }> {
+  return apiFetch<{ token: string }>("/auth/2fa/challenge", {
+    method: "POST",
+    token: challengeToken,
+    body: JSON.stringify({ code }),
+  });
+}
+
 /** A single active session as returned by the backend. */
 export type Session = {
   id: string;

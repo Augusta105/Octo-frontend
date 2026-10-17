@@ -4,6 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { changePassword, MIN_ACCOUNT_PASSWORD_LENGTH } from "@/lib/passwordApi";
+import { passwordStrength, MIN_PASSWORD_SCORE } from "@/lib/passwordStrength";
+import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none";
@@ -19,6 +21,10 @@ export function ChangePasswordForm({ token }: { token: string }) {
     e.preventDefault();
     if (next.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
       setError(`New password must be at least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (passwordStrength(next).score < MIN_PASSWORD_SCORE) {
+      setError("New password is too weak. Choose a stronger password.");
       return;
     }
     if (next !== confirm) {
@@ -70,6 +76,7 @@ export function ChangePasswordForm({ token }: { token: string }) {
             autoComplete="new-password"
             className={inputClass}
           />
+          <PasswordStrengthMeter password={next} />
         </label>
         <label className="block text-sm font-medium text-foreground">
           Confirm new password

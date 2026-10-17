@@ -3,14 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { signup, login, verifyEmail, resendOtp, needsVerification, saveToken } from "@/lib/auth";
+import { signup, login, verifyEmail, resendOtp, needsVerification, saveToken, verify2fa } from "@/lib/auth";
 import { errorMessage } from "@/lib/api";
+import { assessPassword, MIN_PASSWORD_SCORE } from "@/lib/passwordStrength";
+import { PasswordStrengthMeter } from "./PasswordStrengthMeter";
 import { OtpInput } from "./OtpInput";
 
 type Mode = "signup" | "login";
-type Step = "credentials" | "verify";
+type Step = "credentials" | "verify" | "twofactor";
 
 const RESEND_COOLDOWN_SECS = 30;
+const MIN_PASSWORD_LENGTH = 8;
+
+/** Login response shape when a TOTP/recovery-code challenge is required. */
+type TwoFactorChallenge = { two_factor_required: true; challenge_id: string };
+
+function needsTwoFactor(x: unknown): x is TwoFactorChallenge {
+  return typeof x === "object" && x !== null && "two_factor_required" in x;
+}
 
 export function AuthForm({
   mode,
@@ -27,6 +37,7 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userId, setUserId] = useState("");
+  const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,15 +71,23 @@ export function AuthForm({
       setError("Please enter a valid email address.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (isSignup && assessPassword(password, [email]).score < MIN_PASSWORD_SCORE) {
+      setError("Please choose a stronger password.");
       return;
     }
 
     setLoading(true);
     try {
       const result = isSignup ? await signup(email, password) : await login(email, password);
-      if (needsVerification(result)) {
+      if (needsTwoFactor(result)) {
+        setChallengeId(result.challenge_id);
+        setCode("");
+        setStep("twofactor");
+      } else if (needsVerification(result)) {
         setUserId(result.user_id);
         setStep("verify");
         startCooldown();
@@ -103,6 +122,26 @@ export function AuthForm({
     }
   }
 
+  async function onTwoFactor(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const trimmed = code.trim();
+    if (trimmed.length < 6) {
+      setError("Enter the 6-digit code from your authenticator app or a recovery code.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await verify2fa(challengeId, trimmed);
+      finish(result.token);
+    } catch (err) {
+      const message = errorMessage(err, "Invalid or expired code.");
+      setError(message);
+      toast.error(message);
+      setLoading(false);
+    }
+  }
+
   async function onResend() {
     if (resendCooldown > 0) return;
     setError(null);
@@ -115,6 +154,51 @@ export function AuthForm({
       setError(message);
       toast.error(message);
     }
+  }
+
+  if (step === "twofactor") {
+    return (
+      <div>
+        <h1 className="text-center text-3xl font-semibold text-foreground">Two-factor authentication</h1>
+        <p className="mt-3 text-center text-sm text-muted">
+          Enter the 6-digit code from your authenticator app, or one of your recovery codes.
+        </p>
+
+        <div className="my-7 h-px bg-border" />
+
+        <form onSubmit={onTwoFactor} className="space-y-5">
+          <label htmlFor="twofactor-input" className="text-sm font-medium text-foreground">
+            Authentication code
+          </label>
+          <input
+            id="twofactor-input"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="123456 or recovery code"
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? "twofactor-error" : undefined}
+            className="w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
+          />
+
+          {error && (
+            <p id="twofactor-error" role="alert" className="rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="glass-btn-primary w-full rounded-xl py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Verifying…" : "Verify"}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   if (step === "verify") {
@@ -216,6 +300,7 @@ export function AuthForm({
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/60 focus:outline-none"
             />
           </div>
+          {isSignup && <PasswordStrengthMeter password={password} userInputs={[email]} />}
           {!isSignup && <Link href="/forgot-password" className="mt-2 inline-block text-xs text-muted hover:text-foreground">Forgot password?</Link>}
         </div>
 
