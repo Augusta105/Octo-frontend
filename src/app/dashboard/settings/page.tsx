@@ -4,10 +4,18 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
 import { updateUsername, type User } from "@/lib/auth";
-import { errorMessage } from "@/lib/api";
+import {
+  errorMessage,
+  getTwoFactorStatus,
+  startTwoFactorSetup,
+  confirmTwoFactorSetup,
+  disableTwoFactor,
+  type TwoFactorSetup,
+} from "@/lib/api";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { PageSpinner } from "@/components/OctoSpinner";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +99,17 @@ export default function SettingsPage() {
         </form>
       </div>
       {token && <ChangePasswordForm token={token} />}
+      {token && (
+        <TwoFactorSection
+          token={token}
+          getStatus={getTwoFactorStatus}
+          startSetup={startTwoFactorSetup}
+          confirmSetup={confirmTwoFactorSetup}
+          disable={disableTwoFactor}
+          errorMessage={errorMessage}
+          typeSetup={undefined as unknown as TwoFactorSetup}
+        />
+      )}
     </DashboardShell>
   );
 }

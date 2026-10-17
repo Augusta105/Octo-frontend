@@ -1,4 +1,5 @@
 import { escapeHtml, shell, BURGUNDY_BRIGHT } from "./shell";
+import { TX_TIMEOUT_SECONDS } from "../lib/sdk/tx";
 
 /** One-time code email, shared by signup verification and withdrawal confirmation. */
 export function renderOtpEmail({
@@ -27,6 +28,11 @@ ${destination ? `<p style="margin:0;font-size:13px;color:#444;word-break:break-a
     purpose === "withdrawal"
       ? `<p style="margin:20px 0 0;color:#b00020;font-size:12px;font-weight:600;">Didn't request this? Don't share the code.</p>`
       : "";
+  // Withdrawals confirm a signed envelope that expires after TX_TIMEOUT_SECONDS, not the 10-minute code TTL.
+  const expiry =
+    purpose === "withdrawal"
+      ? `This code expires in ${Math.ceil(TX_TIMEOUT_SECONDS / 60)} minutes. If you didn't request it, you can ignore this email.`
+      : "This code expires in 10 minutes. If you didn't request it, you can ignore this email.";
   return shell(
     `<p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#111;">Your verification code</p>
 <p style="margin:0 0 20px;color:#666;">Use this code to ${escapeHtml(action)}.</p>
@@ -35,7 +41,7 @@ ${details}
 <span style="font-size:30px;font-weight:700;letter-spacing:6px;color:#fff;">${escapeHtml(code)}</span>
 </div>
 ${warning}
-<p style="margin:20px 0 0;color:#999;font-size:12px;">This code expires in 10 minutes. If you didn't request it, you can ignore this email.</p>`,
+<p style="margin:20px 0 0;color:#999;font-size:12px;">${escapeHtml(expiry)}</p>`,
     "key",
   );
 }
