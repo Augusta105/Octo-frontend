@@ -492,7 +492,7 @@ function PhraseCheck({
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const mismatched = indices.filter(
-      (i) => (answers[i] ?? "").trim().toLowerCase() !== (words[i] ?? ""),
+      (i) => (answers[i] ?? "").trim().toLowerCase() !== (words[i] ?? "").toLowerCase(),
     );
     setWrong(mismatched);
     if (mismatched.length === 0) {

@@ -30,7 +30,7 @@ export function OtpInput({
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (!pasted) return;
     e.preventDefault();
-    onChange(pasted.padEnd(value.length, ""));
+    onChange(pasted);
     inputs.current[Math.min(pasted.length, 5)]?.focus();
   }
 

@@ -43,9 +43,12 @@ export function loadLocalBackup(walletId: string): EncryptedBackup | null {
 export function clearLocalBackups() {
   if (typeof window === "undefined") return;
   try {
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith(PREFIX)) localStorage.removeItem(key);
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key !== null && key.startsWith(PREFIX)) keys.push(key);
     }
+    for (const key of keys) localStorage.removeItem(key);
   } catch {
     notifyStorageFailure();
   }
