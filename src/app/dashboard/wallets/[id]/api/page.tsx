@@ -179,15 +179,6 @@ export default function DevelopersPage({
                   </div>
                 </Row>
 
-                <Row label="Webhook URLs">
-                  <span className="text-sm text-muted">
-                    {wallet ? "Configure on the Webhooks tab" : "No webhooks configured"}
-                  </span>
-                </Row>
-
-                <Row label="Whitelisted IPs">
-                  <span className="text-sm text-muted">No IPs whitelisted</span>
-                </Row>
               </div>
 
               {/* quickstart */}

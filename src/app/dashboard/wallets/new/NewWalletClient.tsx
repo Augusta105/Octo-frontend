@@ -11,6 +11,7 @@ import {
   type CreateWalletResponse,
 } from "@/lib/wallets";
 import { errorMessage } from "@/lib/api";
+import { network } from "@/lib/network";
 import {
   generateWallet,
   encryptSeed,
@@ -255,7 +256,7 @@ export function NewWalletClient() {
                   <div className="mt-2 flex items-center justify-between rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground">
                     <span className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-burgundy-bright" />
-                      Stellar — Testnet
+                      Stellar — {network.displayName}
                     </span>
                     <span className="text-xs text-muted">fixed</span>
                   </div>
@@ -435,7 +436,11 @@ function RecoveryReveal({
           {wallet.address}
         </p>
         <p className="mt-2 text-burgundy-bright">
-          {wallet.funded ? "✓ Funded on testnet" : "Not yet funded"}
+          {wallet.funded
+            ? network.isTestnet
+              ? "✓ Funded on testnet"
+              : "✓ Funded"
+            : "Not yet funded"}
         </p>
       </div>
 

@@ -25,6 +25,8 @@ import { PayerPrivacyNotice } from "@/components/checkout/PayerPrivacyNotice";
 import confetti from "canvas-confetti";
 import { formatStroops } from "@/lib/amount";
 import { friendlyResultMessage } from "@/lib/stellar/resultCodes";
+import { isTrustedImageUrl } from "@/lib/isTrustedImageUrl";
+import { validateRedirectUrl } from "@/lib/redirectUrl";
 
 type Step = "loading" | "not-found" | "form" | "pay" | "confirmed";
 
@@ -68,8 +70,13 @@ function celebrate() {
   });
 }
 
-// Sends the payer back to the merchant's site after a short delay; only https: URLs are followed.
+// Sends the payer back to the merchant's site after a short delay; only https: URLs are followed and it fails closed on a bad URL.
 function redirectAfterConfirm(redirectUrl: string, paymentId: string, slugValue: string) {
+  const error = validateRedirectUrl(redirectUrl);
+  if (error) {
+    // malformed or unsafe redirect_url — stay on the confirmed page instead of redirecting
+    return;
+  }
   try {
     const url = new URL(redirectUrl);
     if (url.protocol !== "https:") return;
@@ -422,7 +429,7 @@ export default function PayPage({
             </div>
           )}
 
-          {link?.image_url ? (
+          {link?.image_url && isTrustedImageUrl(link.image_url) ? (
             <img
               src={link.image_url}
               alt=""

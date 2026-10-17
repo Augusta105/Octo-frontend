@@ -19,8 +19,13 @@ const NAV: {
     href: "/dashboard/sponsorship",
     icon: <GasPumpIcon />,
   },
-  { label: "Asset Recovery", href: "/dashboard/recovery", icon: "↺" },
-  { label: "Developers", href: "/dashboard/developers", icon: "›_" },
+  {
+    label: "Asset Recovery",
+    href: "/dashboard/recovery",
+    icon: "↺",
+    soon: true,
+  },
+  { label: "Developers", href: "/dashboard/developers", icon: "›_", soon: true },
   { label: "Audit Logs", href: "/dashboard/audit", icon: "▤" },
   { label: "Settings", href: "/dashboard/settings", icon: "⚙" },
 ];
@@ -93,17 +98,6 @@ export function Sidebar({
           );
         })}
       </nav>
-
-      <div className="rounded-xl border border-border bg-burgundy-soft/30 p-4">
-        <p className="text-sm font-semibold text-foreground">Free Plan</p>
-        <p className="mt-1 text-[11px] text-muted">0 of 100 Addresses</p>
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-hover">
-          <div className="h-full w-[2%] rounded-full bg-burgundy-bright" />
-        </div>
-        <button className="mt-4 w-full rounded-lg bg-foreground py-2 text-xs font-semibold text-background">
-          Upgrade
-        </button>
-      </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-[11px] text-muted">Appearance</span>
