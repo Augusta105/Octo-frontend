@@ -56,6 +56,10 @@ export async function me(token: string): Promise<User> {
   return apiFetch<User>("/v1/auth/me", { token });
 }
 
+export const USERNAME_MIN = 3;
+export const USERNAME_MAX = 20;
+export const USERNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 /** Set the signed-in user's display username (3–20 chars, letters/digits/underscore/hyphen). */
 export async function updateUsername(token: string, username: string): Promise<User> {
   return apiFetch<User>("/v1/auth/me", {
