@@ -7,6 +7,7 @@ import { errorMessage } from "@/lib/api";
 import { Pagination } from "@/components/dashboard/Pagination";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { PageSpinner } from "@/components/OctoSpinner";
+import { RelativeTime } from "@/components/RelativeTime";
 
 const CATEGORIES = [
   { value: "all", label: "All categories" },
@@ -128,7 +129,6 @@ export default function AuditLogsPage() {
             <thead className="bg-surface-raised text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-5 py-3">Activity</th>
-                <th className="px-5 py-3">User</th>
                 <th className="px-5 py-3">Category</th>
                 <th className="px-5 py-3">IP Address</th>
                 <th className="px-5 py-3 text-right">Time</th>
@@ -148,7 +148,6 @@ export default function AuditLogsPage() {
                         <span className="text-muted"> · {l.target}</span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5 text-muted">{user.email}</td>
                     <td className="px-5 py-3.5">
                       <span className="inline-flex items-center gap-1.5 text-xs capitalize text-muted">
                         <span
@@ -169,7 +168,7 @@ export default function AuditLogsPage() {
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted">
-                      {timeAgo(l.created_at)}
+                      <RelativeTime date={l.created_at} />
                     </td>
                   </tr>
                 ))
@@ -207,24 +206,11 @@ function Row({
   return (
     <tr>
       <td
-        colSpan={colSpan ? 5 : 1}
+        colSpan={colSpan ? 4 : 1}
         className="px-5 py-10 text-center text-sm text-muted"
       >
         {children}
       </td>
     </tr>
   );
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d} day${d === 1 ? "" : "s"} ago`;
-  return new Date(iso).toLocaleDateString();
 }
