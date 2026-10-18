@@ -55,7 +55,7 @@ export default function PaymentLinksPage({
     (before: string | null, opts?: { silent?: boolean }) => {
       if (!token) return;
       if (!opts?.silent) setRefreshing(true);
-      listPaymentLinksPage(asAuthToken(token), asWalletId(id), { before })
+      return listPaymentLinksPage(asAuthToken(token), asWalletId(id), { before })
         .then((page) => {
           setLinks(page.data);
           setNextCursor(page.next_cursor);

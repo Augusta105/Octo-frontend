@@ -47,7 +47,7 @@ export default function TransactionsPage({
     (before: string | null, opts?: { silent?: boolean }) => {
       if (!token) return;
       if (!opts?.silent) setRefreshing(true);
-      listTransactionsPage(token, id, { before })
+      return listTransactionsPage(token, id, { before })
         .then((page) => {
           setTxns(page.data);
           setNextCursor(page.next_cursor);
