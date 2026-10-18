@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
 import { useWallet } from "@/lib/useWallet";
 import { amountToStroops } from "@/lib/wallets";
@@ -35,12 +36,13 @@ export default function SponsorshipSettingsPage({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
-    getSponsorshipConfig(asAuthToken(token), asWalletId(id))
+    getSponsorshipConfig(asAuthToken(token), asWalletId(id), {
+      signal: controller.signal,
+    })
       .then((c) => {
         setConfig(c);
         setEnabled(c.enabled);
@@ -97,8 +99,7 @@ export default function SponsorshipSettingsPage({
         daily_budget_stroops: budgetStroops,
       });
       setConfig(updated);
-      setToast("Sponsorship settings saved.");
-      setTimeout(() => setToast(null), 3000);
+      toast.success("Sponsorship settings saved.");
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Failed to save settings.",
@@ -237,12 +238,6 @@ export default function SponsorshipSettingsPage({
             </div>
 
     </WalletPageShell>
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 rounded-xl border border-burgundy/40 bg-burgundy/20 px-4 py-3 text-sm text-burgundy-bright shadow-lg">
-          ✓ {toast}
-        </div>
-      )}
   </>
   );
 }
