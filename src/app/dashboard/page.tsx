@@ -108,7 +108,7 @@ export default function DashboardHome() {
             </h2>
             <p className="mt-1 text-sm text-muted">
               It&apos;s{" "}
-              {new Date().toLocaleDateString("us-EN", {
+              {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "short",
                 day: "numeric",
