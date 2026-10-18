@@ -13,6 +13,7 @@ import {
   getBackup,
   parseBackup,
 } from "@/lib/sdk";
+import { fromMnemonic } from "@/lib/sdk/keys";
 import { assessPassword, PasswordStrengthMeter, MIN_PASSWORD_LENGTH, type PasswordAssessment } from "@/lib/passwordStrength";
 
 /**
@@ -29,11 +30,13 @@ import { assessPassword, PasswordStrengthMeter, MIN_PASSWORD_LENGTH, type Passwo
 export function ChangeWalletPasswordModal({
   token,
   walletId,
+  walletAddress,
   onClose,
   onDone,
 }: {
   token: string;
   walletId: string;
+  walletAddress?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -79,6 +82,18 @@ export function ChangeWalletPasswordModal({
       const parsed = parseBackup(remote.encrypted_backup);
       saveLocalBackup(walletId, parsed, serverVersion);
       const mnemonic = await decryptSeed(parsed, password);
+      try {
+        const derived = fromMnemonic(mnemonic);
+        if (walletAddress && derived.publicKey !== walletAddress) {
+          throw new Error("Decrypted key does not match this wallet.");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Decrypted key does not match this wallet.";
+        if (/does not match this wallet/i.test(message)) {
+          throw err;
+        }
+        throw new Error("Decrypted key does not match this wallet.");
+      }
       return { mnemonic, backup: parsed, version: serverVersion };
     }
     // Cache matches the server: the password is wrong.
@@ -120,6 +135,18 @@ export function ChangeWalletPasswordModal({
       // password or if no backup exists anywhere.
       const { mnemonic: decrypted } = await loadAuthoritativeBackup(currentPassword);
       mnemonic = decrypted;
+      try {
+        const derived = fromMnemonic(mnemonic);
+        if (walletAddress && derived.publicKey !== walletAddress) {
+          throw new Error("Decrypted key does not match this wallet.");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Decrypted key does not match this wallet.";
+        if (/does not match this wallet/i.test(message)) {
+          throw err;
+        }
+        throw new Error("Decrypted key does not match this wallet.");
+      }
       // Re-encrypt under new password.
       const newBackup = await encryptSeed(mnemonic, newPassword);
       const serialized = serializeBackup(newBackup);

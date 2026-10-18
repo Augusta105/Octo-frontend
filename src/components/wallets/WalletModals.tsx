@@ -3,21 +3,23 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { OtpInput } from "@/components/auth/OtpInput";
-import { Modal, CopyField } from "@/components/dashboard/Modal";
+import { Modal, CopyField, HighlightedAddress } from "@/components/dashboard/Modal";
 import { DepositQrCodes } from "@/components/qr/DepositQrCodes";
 import { ApiError } from "@/lib/api";
 import { usdcForNetwork, type Address, type Balance } from "@/lib/wallets";
-import { explorerTxUrl } from "@/lib/network";
+import { explorerTxUrl, network } from "@/lib/network";
+import { Transaction, TransactionBuilder, FeeBumpTransaction } from "@stellar/stellar-base";
 import {
   unlockWallet, getSigningInfo, submitSigned, requestWithdrawOtp, confirmWithdraw,
   getAccountExists, buildSignedPayment, buildSignedChangeTrust, buildSignedCreateAccount,
   txExpiresAt, TX_TIMEOUT_SECONDS, assertNetworkConsistency, validateMemo,
-  type SigningInfo, type SubmitResult, type Memo,
+  getFeeStroops, type SigningInfo, type SubmitResult, type Memo,
 } from "@/lib/sdk";
 import { parseAmount, formatStroops } from "@/lib/amount";
 import { validateStellarAddress, getStellarAddressKind, baseAccountOf } from "@/lib/stellar/address";
 import { minimumBalanceStroops, spendableNativeStroops, minCreateAccountStroops, reserveIsExact } from "@/lib/stellar/reserve";
 import { friendlyResultMessage, isExpiredResult } from "@/lib/stellar/resultCodes";
+
 
 export function TrustlineModal({
   token,
@@ -299,6 +301,13 @@ export function WithdrawModal({
   // OTP resend cooldown for the already-signed tx.
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
   const [resending, setResending] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
+  const [signedTxDetails, setSignedTxDetails] = useState<{
+    destination: string;
+    amount: string;
+    assetCode: string;
+    assetIssuer?: string;
+  } | null>(null);
   const resendCooldown = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000));
 
   const selected =
@@ -354,20 +363,21 @@ export function WithdrawModal({
     return { stroops: parsed.stroops };
   }
 
-  async function requestOtp() {
+  function checkedFeeStroops(): bigint {
+    const checked = validate();
+    if ("error" in checked) return BigInt(0);
+    return checked.stroops;
+  }
+
+  async function proceedToReview() {
     setError(null);
     const checked = validate();
     if ("error" in checked) {
       setError(checked.error);
       return;
     }
-    if (!password) {
-      setError("Enter your wallet password to sign.");
-      return;
-    }
     setSubmitting(true);
     try {
-      // Unfunded destinations can't receive a plain payment (op_no_destination); null = unknown.
       const exists = await getAccountExists(token, walletId, baseAccountOf(destination))
         .then((r) => r.exists)
         .catch(() => null);
@@ -390,9 +400,33 @@ export function WithdrawModal({
         );
         return;
       }
+      setCreatesAccount(needsCreate);
+      setReviewed(true);
+      setSubmitting(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to validate destination";
+      setError(message);
+      setSubmitting(false);
+    }
+  }
 
-      // Unlock and sign locally — the private key never leaves this device. Only after signing
-      // do we ask the server to email an OTP bound to this exact transaction.
+  async function signAndRequestOtp() {
+    setError(null);
+    const checked = validate();
+    if ("error" in checked) {
+      setError(checked.error);
+      return;
+    }
+    if (!password) {
+      setError("Enter your wallet password to sign.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const exists = await getAccountExists(token, walletId, baseAccountOf(destination))
+        .then((r) => r.exists)
+        .catch(() => null);
+      const needsCreate = exists === false;
       const keypair = await unlockWallet(token, walletId, password, walletAddress);
       const info = await getSigningInfo(token, walletId);
       assertNetworkConsistency(info.network_passphrase);
@@ -412,7 +446,7 @@ export function WithdrawModal({
         : buildSignedPayment(keypair, info, {
             destination,
             amount: normalized,
-            asset: selected.asset, // undefined => XLM
+            asset: selected.asset,
             memo: memoPayload,
           });
       await requestWithdrawOtp(token, walletId, signedXdr);
@@ -424,6 +458,29 @@ export function WithdrawModal({
       setNetworkExpired(false);
       setResigning(false);
       setResendAvailableAt(signedAt + RESEND_COOLDOWN_SECS * 1000);
+      try {
+        const decoded = TransactionBuilder.fromXDR(signedXdr, network.passphrase);
+        const t = decoded instanceof Transaction ? decoded : (decoded instanceof FeeBumpTransaction ? decoded.innerTransaction : decoded);
+        if (t.operations && t.operations[0]) {
+          const op = t.operations[0];
+          if (op.type === 'payment') {
+            setSignedTxDetails({
+              destination: op.destination,
+              amount: op.amount,
+              assetCode: op.asset.code,
+              assetIssuer: op.asset.isNative() ? undefined : op.asset.issuer,
+            });
+          } else if (op.type === 'createAccount') {
+            setSignedTxDetails({
+              destination: op.destination,
+              amount: op.startingBalance,
+              assetCode: 'XLM',
+            });
+          }
+        }
+      } catch (e) {
+        // ignore decode errors
+      }
       setPendingXdr(signedXdr);
     } catch (err) {
       const message = friendlyResultMessage(
@@ -433,13 +490,10 @@ export function WithdrawModal({
       setError(message);
       toast.error(message);
     } finally {
-      // The password is only needed for the instant of signing; never keep it around.
       setPassword("");
       setSubmitting(false);
     }
   }
-
-  // Re-sends the OTP for the already-signed tx, so the user doesn't have to unlock and sign again.
   async function resendOtp() {
     if (!pendingXdr || resending || resendCooldown > 0 || expired) return;
     setError(null);
@@ -499,6 +553,7 @@ export function WithdrawModal({
     setCode("");
     setError(null);
     setResigning(resign);
+    setReviewed(false);
   }
 
   if (result) {
@@ -540,6 +595,148 @@ export function WithdrawModal({
     );
   }
 
+  if (reviewed && !pendingXdr) {
+    return (
+      <Modal title="Review withdrawal" onClose={onClose}>
+        <p className="text-sm text-muted">
+          Review exactly what you are about to sign before entering your wallet password.
+        </p>
+        <div className="mt-4 space-y-2 rounded-lg border border-border bg-surface-sunken px-3 py-3 text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="text-muted">Destination:</span>
+            <HighlightedAddress address={destination} />
+          </div>
+          <p className="text-muted">
+            Asset: <span className="text-foreground">{selected.code}</span>
+            {selected.asset && <span className="ml-1 break-all font-mono text-foreground">({selected.asset.issuer})</span>}
+          </p>
+          <p className="text-muted">
+            Amount: <span className="text-foreground">{amount} {selected.code}</span>
+          </p>
+          {createsAccount && (
+            <p className="text-warning">This will create the account.</p>
+          )}
+          <p className="text-muted">
+            Fee: <span className="text-foreground">{reserveInfo ? (getFeeStroops(reserveInfo) / 10000000).toFixed(7) : "0.0000100"} XLM</span>
+          </p>
+          {createsAccount && (
+            <p className="text-warning">
+              Account creation (new account requires minimum balance).
+            </p>
+          )}
+          {memo.trim() && (
+            <p className="text-muted">
+              Memo: {memoType === "id" ? "ID " : "Text "}{memo.trim()}
+            </p>
+          )}
+        </div>
+        <div className="mt-4">
+          <label className="text-xs text-muted">Wallet password (to sign)</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your encryption password"
+            autoComplete="current-password"
+            className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
+          />
+        </div>
+        {error && (
+          <p className="mt-3 rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+            {error}
+          </p>
+        )}
+        <button
+          onClick={signAndRequestOtp}
+          disabled={submitting}
+          className="mt-5 w-full rounded-lg glass-btn-primary py-2.5 text-sm font-semibold disabled:opacity-60"
+        >
+          {submitting ? "Signing..." : "Sign & continue"}
+        </button>
+        <button
+          onClick={() => { setReviewed(false); setError(null); }}
+          className="mt-3 w-full text-center text-xs text-muted hover:text-foreground"
+        >
+          Back to form
+        </button>
+      </Modal>
+    );
+  }
+
+
+  if (reviewed && !pendingXdr) {
+    const checked = validate();
+    const stroops = "stroops" in checked ? checked.stroops : BigInt(0);
+    return (
+      <Modal title="Review withdrawal" onClose={() => { setReviewed(false); setError(null); }}>
+        <p className="text-sm text-muted">
+          Review exactly what you are about to sign before entering your wallet password.
+        </p>
+        <div className="mt-4 space-y-2 rounded-lg border border-border bg-surface-sunken px-3 py-3 text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="text-muted">Destination:</span>
+            <HighlightedAddress address={destination} />
+          </div>
+          <p className="text-muted">
+            Asset: <span className="text-foreground">{selected.code}</span>
+            {selected.asset && <span className="ml-1 break-all font-mono text-foreground">({selected.asset.issuer})</span>}
+          </p>
+          <p className="text-muted">
+            Amount: <span className="text-foreground">{amount} {selected.code}</span>
+          </p>
+          {createsAccount && (
+            <p className="text-warning">
+              This will create the account (account creation transaction).
+            </p>
+          )}
+          <p className="text-muted">
+            Fee: <span className="text-foreground">{reserveInfo ? (getFeeStroops(reserveInfo) / 10000000).toFixed(7) : "0.0000100"} XLM</span>
+          </p>
+          {createsAccount && (
+            <p className="text-warning">
+              Account creation (new account requires minimum balance).
+            </p>
+          )}
+          {memo.trim() && (
+            <p className="text-muted">
+              Memo: {memoType === "id" ? "ID " : "Text "}{memo.trim()}
+            </p>
+          )}
+        </div>
+        <div className="mt-4">
+          <label className="text-xs text-muted">Wallet password (to sign)</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your encryption password"
+            autoComplete="current-password"
+            className="mt-1 w-full rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-burgundy-bright focus:outline-none"
+          />
+        </div>
+        {error && (
+          <p className="mt-3 rounded-lg border border-burgundy/40 bg-burgundy/10 px-3 py-2 text-sm text-burgundy-bright">
+            {error}
+          </p>
+        )}
+        <button
+          onClick={signAndRequestOtp}
+          disabled={submitting}
+          className="mt-5 w-full rounded-lg glass-btn-primary py-2.5 text-sm font-semibold disabled:opacity-60"
+        >
+          {submitting ? "Signing..." : "Sign & continue"}
+        </button>
+        <button
+          onClick={() => { setReviewed(false); setError(null); }}
+          className="mt-3 w-full text-center text-xs text-muted hover:text-foreground"
+        >
+          Back to form
+        </button>
+      </Modal>
+    );
+  }
+
+
   if (pendingXdr && expired) {
     return (
       <Modal title="Withdrawal expired" onClose={onClose}>
@@ -570,7 +767,7 @@ export function WithdrawModal({
         <p className="text-center text-sm text-muted">
           Enter the 6-digit code we emailed you to confirm this withdrawal of{" "}
           <span className="text-foreground">
-            {amount} {selected.code}
+            {signedTxDetails ? signedTxDetails.amount : amount} {signedTxDetails ? signedTxDetails.assetCode : selected.code}
           </span>
           .
         </p>
@@ -579,13 +776,43 @@ export function WithdrawModal({
             Memo: {memoType === "id" ? "ID " : "Text "}{memo.trim()}
           </p>
         )}
+        {signedTxDetails && (
+          <div className="mt-3 space-y-1 rounded-lg border border-border bg-surface-sunken px-3 py-2 text-xs">
+            <p className="text-muted">
+              Destination: <span className="font-mono text-foreground"><HighlightedAddress address={signedTxDetails.destination} /></span>
+            </p>
+            <p className="text-muted">
+              Amount: <span className="text-foreground">{signedTxDetails.amount} {signedTxDetails.assetCode}</span>
+            </p>
+            {signedTxDetails.assetIssuer && (
+              <p className="text-muted break-all">
+                Issuer: <span className="font-mono text-foreground">{signedTxDetails.assetIssuer}</span>
+              </p>
+            )}
+          </div>
+        )}
         {createsAccount && (
           <p className="mt-2 text-center text-xs text-muted">
             This address isn&apos;t activated yet — this withdrawal will create it.
           </p>
         )}
 
-        <p
+        {signedTxDetails && (
+          <div className="mt-3 space-y-1 rounded-lg border border-border bg-surface-sunken px-3 py-2 text-xs">
+            <div className="flex flex-col gap-1">
+              <span className="text-muted">Destination:</span>
+              <HighlightedAddress address={signedTxDetails.destination} />
+            </div>
+            <p className="text-muted">
+              Amount: <span className="text-foreground">{signedTxDetails.amount} {signedTxDetails.assetCode}</span>
+            </p>
+            {signedTxDetails.assetIssuer && (
+              <p className="text-muted">
+                Issuer: <span className="break-all font-mono text-foreground">{signedTxDetails.assetIssuer}</span>
+              </p>
+            )}
+          </div>
+        )}        <p
           className={`mt-3 text-center text-xs ${secondsLeft <= 30 ? "text-warning" : "text-muted"}`}
           aria-live="polite"
         >
@@ -796,11 +1023,11 @@ export function WithdrawModal({
         )}
 
         <button
-          onClick={requestOtp}
+          onClick={proceedToReview}
           disabled={submitting}
           className="w-full rounded-lg glass-btn-primary py-2.5 text-sm font-semibold disabled:opacity-60"
         >
-          {submitting ? "Signing…" : resigning ? "Sign again" : "Withdraw"}
+          {submitting ? "Checking…" : resigning ? "Review & sign again" : "Review & withdraw"}
         </button>
       </div>
     </Modal>
