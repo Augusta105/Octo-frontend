@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { useWallet } from "@/lib/useWallet";
 import {
@@ -43,12 +43,17 @@ export default function TransactionsPage({
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
+  // Latest non-silent request id; a response that no longer matches it is stale and dropped.
+  const latestReq = useRef(0);
+
   const load = useCallback(
     (before: string | null, opts?: { silent?: boolean }) => {
       if (!token) return;
+      const reqId = opts?.silent ? latestReq.current : ++latestReq.current;
       if (!opts?.silent) setRefreshing(true);
       return listTransactionsPage(token, id, { before })
         .then((page) => {
+          if (reqId !== latestReq.current) return;
           setTxns(page.data);
           setNextCursor(page.next_cursor);
           setError(null);
