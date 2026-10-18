@@ -9,6 +9,7 @@ import {
   getSponsorshipConfig,
   type SponsorshipConfig,
 } from "@/lib/sponsorship";
+import { formatStroops } from "@/lib/amount";
 import { asAuthToken, asWalletId } from "@/lib/brands";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { Pagination } from "@/components/dashboard/Pagination";
@@ -210,7 +211,7 @@ function EmptyState() {
 }
 
 function formatXlm(stroops: number): string {
-  return (stroops / 10_000_000).toFixed(2);
+  return formatStroops(stroops);
 }
 
 function WalletCard({
