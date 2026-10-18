@@ -13,6 +13,8 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { PageSpinner } from "@/components/OctoSpinner";
 import { SponsorshipSummary } from "@/components/sponsorship/SponsorshipSummary";
 
+const CONFIG_CONCURRENCY = 5;
+
 type WalletSponsorship = {
   wallet: WalletView;
   config: SponsorshipConfig | null;
@@ -29,11 +31,22 @@ export default function SponsorshipPage() {
     listAllWallets(token)
       .then(async (wallets) => {
         // Only the sponsorship config is fetched per wallet — not full wallet details.
-        const configs = await Promise.all(
-          wallets.map((w) =>
-            getSponsorshipConfig(asAuthToken(token), asWalletId(w.id)).catch(() => null),
-          ),
-        );
+        const configs: (SponsorshipConfig | null)[] = [];
+        for (let i = 0; i < wallets.length; i += CONFIG_CONCURRENCY) {
+          signal?.throwIfAborted();
+          const batch = wallets.slice(i, i + CONFIG_CONCURRENCY);
+          configs.push(
+            ...(await Promise.all(
+              batch.map((w) =>
+                getSponsorshipConfig(asAuthToken(token), asWalletId(w.id), { signal }).catch((e) => {
+                  if (signal?.aborted) throw e;
+                  return null;
+                }),
+              ),
+            )),
+          );
+        }
+        signal?.throwIfAborted();
         return wallets.map((wallet, i) => ({ wallet, config: configs[i] ?? null }));
       })
       .then(setRows)
