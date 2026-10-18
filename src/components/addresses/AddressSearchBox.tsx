@@ -16,8 +16,8 @@ export function AddressSearchBox({ onChange }: { onChange: (query: string) => vo
       type="search"
       value={value}
       onChange={(e) => setValue(e.target.value)}
-      placeholder="Search by customer reference"
-      aria-label="Search addresses by customer reference"
+      placeholder="Search loaded addresses by customer reference"
+      aria-label="Search loaded addresses by customer reference"
       className="w-full max-w-sm rounded-xl border border-border bg-surface-raised px-4 py-2 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
     />
   );
