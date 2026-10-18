@@ -30,9 +30,14 @@ export type SponsorshipConfigPayload = {
 };
 
 /** Fetch the gas sponsorship config for a single wallet. */
-export function getSponsorshipConfig(token: AuthToken, walletId: WalletId) {
+export function getSponsorshipConfig(
+  token: AuthToken,
+  walletId: WalletId,
+  options: { signal?: AbortSignal } = {},
+) {
   return apiFetch<SponsorshipConfig>(path`/v1/wallets/${walletId}/sponsorship`, {
     token,
+    signal: options.signal,
   });
 }
 
