@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { useWallet } from "@/lib/useWallet";
 import { PaymentLinkList } from "@/components/payment-links/PaymentLinkList";
@@ -51,12 +51,17 @@ export default function PaymentLinksPage({
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
+  // Latest non-silent request id; a response that no longer matches it is stale and dropped.
+  const latestReq = useRef(0);
+
   const load = useCallback(
     (before: string | null, opts?: { silent?: boolean }) => {
       if (!token) return;
+      const reqId = opts?.silent ? latestReq.current : ++latestReq.current;
       if (!opts?.silent) setRefreshing(true);
-      listPaymentLinksPage(asAuthToken(token), asWalletId(id), { before })
+      return listPaymentLinksPage(asAuthToken(token), asWalletId(id), { before })
         .then((page) => {
+          if (reqId !== latestReq.current) return;
           setLinks(page.data);
           setNextCursor(page.next_cursor);
           setError(null);
@@ -148,14 +153,14 @@ export default function PaymentLinksPage({
               </div>
 
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <Stat label="Total links" value={String(links.length)} />
-                <Stat label="Active links" value={String(activeCount)} />
+                <Stat label="Links on this page" value={String(links.length)} />
+                <Stat label="Active on this page" value={String(activeCount)} />
                 <Stat
                   label="Total collected (this page)"
                   value={`$${formatStroops(totalCollected)}`}
                 />
                 <Stat
-                  label="Avg. payment (this page)"
+                  label="Avg. collected per paid link (this page)"
                   value={`$${formatStroops(avgPayment)}`}
                 />
               </div>
