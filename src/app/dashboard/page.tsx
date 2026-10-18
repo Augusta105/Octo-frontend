@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
 import { displayName } from "@/lib/auth";
@@ -30,12 +30,16 @@ export default function DashboardHome() {
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingPage, setLoadingPage] = useState(false);
+  const cancelPrevLoad = useRef<(() => void) | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   const loadPage = useCallback(
     (before: string | null) => {
       if (!token) return;
       let aborted = false;
+      // Cancel the previous request so a slow older page can't overwrite the current one.
+      cancelPrevLoad.current?.();
+      cancelPrevLoad.current = () => { aborted = true; };
       setLoadingPage(true);
       setWallets(null);
       setLoadError(false);
@@ -280,7 +284,7 @@ function WalletCard({
               {sponsorEnabled ? "Enabled" : "Off"}
             </span>
           </div>
-          {/* Daily-budget cap is rendered only when the API returns a numeric budget.
+          {/* Daily-budget cap is rendered only when the API returns a numeric budget.
               The progress bar for daily-spend consumption is intentionally omitted for now
               because the current API response does not include a "fees_spent_today_stroops"
               field. When that lands, swap this label for a fill-bar the same way the wallet
