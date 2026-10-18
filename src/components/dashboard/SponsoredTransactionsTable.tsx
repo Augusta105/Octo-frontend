@@ -7,6 +7,7 @@ import {
 } from "@/lib/sponsorship";
 import { asAuthToken, asWalletId } from "@/lib/brands";
 import { formatStroops, sumStroops } from "@/lib/amount";
+import { explorerTxUrl } from "@/lib/network";
 import { CopyButton } from "@/components/CopyButton";
 import { RelativeTime } from "@/components/RelativeTime";
 
@@ -26,37 +27,47 @@ export function SponsoredTransactionsTable({
   const [rows, setRows] = useState<SponsoredTransaction[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setLoadError(null);
     listSponsoredTransactions(asAuthToken(token), asWalletId(walletId))
       .then((page) => {
         if (!active) return;
         setRows(page.data);
         setCursor(page.next_cursor);
       })
-      .catch(() => active && setRows([]));
+      .catch((e) => {
+        if (!active) return;
+        setRows([]);
+        setLoadError(e instanceof Error ? e.message : "Could not load sponsored transactions.");
+      });
     return () => {
       active = false;
     };
-  }, [walletId, token]);
+  }, [walletId, token, attempt]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
+    setMoreError(null);
     try {
       const page = await listSponsoredTransactions(asAuthToken(token), asWalletId(walletId), { before: cursor });
       // Append — never replace the existing rows.
       setRows((prev) => [...(prev ?? []), ...page.data]);
       setCursor(page.next_cursor);
-    } catch {
-      // leave the existing list in place on failure
+    } catch (e) {
+      // Keep the existing rows and surface the failure so the user can retry.
+      setMoreError(e instanceof Error ? e.message : "Could not load more transactions.");
     } finally {
       setLoadingMore(false);
     }
   }
 
-  // Summary: count + total fees for the current calendar month (from loaded rows).
+  // Summary: count + total fees for the current calendar month (from loaded rows only).
   const now = new Date();
   const monthRows = (rows ?? []).filter((r) => {
     const d = new Date(r.created_at);
@@ -76,7 +87,8 @@ export function SponsoredTransactionsTable({
         <p className="text-xs text-muted">
           {monthRows.length}{" "}
           {monthRows.length === 1 ? "transaction" : "transactions"} sponsored ·{" "}
-          {formatStroops(monthFeeStroops)} XLM total fees this month
+          {formatStroops(monthFeeStroops)} XLM total fees this month in loaded rows
+          {cursor ? " (more available)" : ""}
         </p>
       </div>
 
@@ -97,6 +109,20 @@ export function SponsoredTransactionsTable({
           <tbody className="divide-y divide-divider">
             {rows === null ? (
               <EmptyRow>Loading…</EmptyRow>
+            ) : loadError ? (
+              <EmptyRow>
+                <span role="alert" className="text-danger">{loadError}</span>{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRows(null);
+                    setAttempt((n) => n + 1);
+                  }}
+                  className="ml-2 rounded-lg border border-border px-3 py-1 text-xs font-medium text-foreground hover:border-burgundy/50"
+                >
+                  Retry
+                </button>
+              </EmptyRow>
             ) : rows.length === 0 ? (
               <EmptyRow>
                 No sponsored transactions yet. Use the{" "}
@@ -130,12 +156,15 @@ export function SponsoredTransactionsTable({
 
       {cursor && (
         <div className="mt-4 text-center">
+          {moreError && (
+            <p role="alert" className="mb-2 text-xs text-danger">{moreError}</p>
+          )}
           <button
             onClick={loadMore}
             disabled={loadingMore}
             className="rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-foreground transition-colors hover:border-burgundy/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loadingMore ? "Loading…" : "Load more"}
+            {loadingMore ? "Loading…" : moreError ? "Retry" : "Load more"}
           </button>
         </div>
       )}
@@ -148,9 +177,14 @@ function HashCell({ hash }: { hash: string | null }) {
 
   return (
     <span className="flex items-center gap-2">
-      <span className="font-mono text-xs text-foreground">
+      <a
+        href={explorerTxUrl(hash)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-mono text-xs text-foreground hover:underline"
+      >
         {`${hash.slice(0, 6)}…${hash.slice(-6)}`}
-      </span>
+      </a>
       {/* Always copies the full hash, not the truncated display value. */}
       <CopyButton value={hash} label="Copy full hash" />
     </span>
