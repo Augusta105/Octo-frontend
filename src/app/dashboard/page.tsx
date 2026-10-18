@@ -9,10 +9,12 @@ import {
   getSponsorshipConfig,
   type SponsorshipConfig,
 } from "@/lib/sponsorship";
+import { formatStroops } from "@/lib/amount";
 import { asAuthToken, asWalletId } from "@/lib/brands";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { Pagination } from "@/components/dashboard/Pagination";
 import { PageSpinner } from "@/components/OctoSpinner";
+import { ErrorState } from "@/components/dashboard/WalletUI";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export default function DashboardHome() {
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingPage, setLoadingPage] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadPage = useCallback(
     (before: string | null) => {
@@ -35,6 +38,7 @@ export default function DashboardHome() {
       let aborted = false;
       setLoadingPage(true);
       setWallets(null);
+      setLoadError(false);
       listWalletsPage(token, { before })
         .then(async (page) => {
           if (aborted) return;
@@ -53,7 +57,7 @@ export default function DashboardHome() {
           setSponsorshipByWalletId(map);
         })
         .catch(() => {
-          if (!aborted) setWallets([]);
+          if (!aborted) setLoadError(true);
         })
         .finally(() => {
           if (!aborted) setLoadingPage(false);
@@ -104,7 +108,7 @@ export default function DashboardHome() {
             </h2>
             <p className="mt-1 text-sm text-muted">
               It&apos;s{" "}
-              {new Date().toLocaleDateString("us-EN", {
+              {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "short",
                 day: "numeric",
@@ -136,7 +140,12 @@ export default function DashboardHome() {
         </h3>
 
         <div className="mt-5">
-          {wallets === null ? (
+          {loadError ? (
+            <ErrorState
+              message="Could not load your wallets."
+              onRetry={() => loadPage(cursors[pageIndex] ?? null)}
+            />
+          ) : wallets === null ? (
             <p className="text-sm text-muted">Loading wallets&#x2026;</p>
           ) : wallets.length === 0 ? (
             <EmptyState />
@@ -202,7 +211,7 @@ function EmptyState() {
 }
 
 function formatXlm(stroops: number): string {
-  return (stroops / 10_000_000).toFixed(2);
+  return formatStroops(stroops);
 }
 
 function WalletCard({

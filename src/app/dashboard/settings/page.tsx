@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/useAuth";
-import { updateUsername, type User } from "@/lib/auth";
+import {
+  updateUsername,
+  USERNAME_MAX,
+  USERNAME_MIN,
+  USERNAME_PATTERN,
+  type User,
+} from "@/lib/auth";
 import {
   errorMessage,
 } from "@/lib/api";
@@ -89,6 +95,15 @@ export default function SettingsPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
+    const trimmed = username.trim();
+    if (
+      trimmed.length < USERNAME_MIN ||
+      trimmed.length > USERNAME_MAX ||
+      !USERNAME_PATTERN.test(trimmed)
+    ) {
+      toast.error(`Username must be ${USERNAME_MIN}–${USERNAME_MAX} characters: letters, numbers, underscores, and hyphens only.`);
+      return;
+    }
     setSubmitting(true);
     try {
       const updated = await updateUsername(token, username.trim());
@@ -116,17 +131,18 @@ export default function SettingsPage() {
           className="mt-6 space-y-6 rounded-2xl border border-border bg-burgundy-soft/30 p-6"
         >
           <div>
-            <label className="text-sm font-medium text-foreground">
+            <label htmlFor="username" className="text-sm font-medium text-foreground">
               Username
             </label>
             <p className="mt-1 text-xs text-muted">
-              3–30 characters: letters, numbers, underscores, and hyphens only.
+              {USERNAME_MIN}–{USERNAME_MAX} characters: letters, numbers, underscores, and hyphens only.
             </p>
             <input
+              id="username"
               value={username}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="e.g. tosin"
-              maxLength={20}
+              maxLength={USERNAME_MAX}
               className="mt-2 w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-foreground placeholder:text-muted/60 focus:border-burgundy-bright focus:outline-none"
             />
           </div>
@@ -140,7 +156,7 @@ export default function SettingsPage() {
 
           <button
             type="submit"
-            disabled={submitting || username.trim().length < 3}
+            disabled={submitting || username.trim().length < USERNAME_MIN}
             className="rounded-xl glass-btn-primary px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
           >
             {submitting ? "Saving…" : "Save username"}
