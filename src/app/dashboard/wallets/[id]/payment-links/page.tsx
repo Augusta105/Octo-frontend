@@ -153,14 +153,14 @@ export default function PaymentLinksPage({
               </div>
 
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <Stat label="Total links" value={String(links.length)} />
-                <Stat label="Active links" value={String(activeCount)} />
+                <Stat label="Links on this page" value={String(links.length)} />
+                <Stat label="Active on this page" value={String(activeCount)} />
                 <Stat
                   label="Total collected (this page)"
                   value={`$${formatStroops(totalCollected)}`}
                 />
                 <Stat
-                  label="Avg. payment (this page)"
+                  label="Avg. collected per paid link (this page)"
                   value={`$${formatStroops(avgPayment)}`}
                 />
               </div>
