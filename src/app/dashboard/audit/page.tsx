@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { listAuditLogsPage, type AuditLog } from "@/lib/audit";
 import { errorMessage } from "@/lib/api";
@@ -36,18 +36,23 @@ export default function AuditLogsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const load = useCallback(
     (before: string | null) => {
       if (!token) return;
+      // Only the latest request may update state, so an older slow response is dropped.
+      const id = ++requestId.current;
       setLogs(null);
       setError(null);
       listAuditLogsPage(token, { category, search, before })
         .then((page) => {
+          if (id !== requestId.current) return;
           setLogs(page.data);
           setNextCursor(page.next_cursor);
         })
         .catch((err) => {
+          if (id !== requestId.current) return;
           setError(errorMessage(err, "Failed to load audit logs."));
           setLogs([]);
         });
